@@ -1,0 +1,115 @@
+# Giá trị mặc định an toàn. Mỗi service chỉ ghi đè phần khác biệt trong repo shp-gitops (values-<env>.yaml).
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ""            # bắt buộc, ví dụ <acr>.azurecr.io/scheduling
+  tag: ""                   # chỉ dùng cho local; cloud luôn dùng digest
+  digest: ""                # sha256:... (ưu tiên hơn tag). CI cập nhật giá trị này
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+containerPort: 8080
+
+# Biến môi trường KHÔNG nhạy cảm (khóa → giá trị). Thông tin nhạy cảm đi qua secretEnv hoặc keyVault.
+env: {}
+# Biến lấy từ Secret có sẵn: - { name: ConnectionStrings__Postgres, secretName: scheduling-db, key: connection }
+secretEnv: []
+config: {}                  # tạo ConfigMap và nạp bằng envFrom
+
+probes:
+  path: /health
+  readyPath: /health/ready
+  livePath: /health/live
+  startup: { failureThreshold: 30, periodSeconds: 5 }
+  readiness: { periodSeconds: 10, failureThreshold: 3 }
+  liveness: { periodSeconds: 20, failureThreshold: 3 }
+
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { memory: 256Mi }
+
+service:
+  type: ClusterIP
+  port: 80
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Azure Workload Identity (không dùng secret/khóa). clientId của User-Assigned Managed Identity của service.
+workloadIdentity:
+  enabled: false
+  clientId: ""
+
+# Key Vault qua Secrets Store CSI driver (chỉ cho giá trị thật sự phải là secret)
+keyVault:
+  enabled: false
+  name: ""
+  tenantId: ""
+  objects: []               # - { name: db-password, type: secret }
+  mountPath: /mnt/secrets
+
+autoscaling:                # HPA theo CPU
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+keda:                       # thay HPA khi cần scale theo hàng đợi/lịch (NFR-S1)
+  enabled: false
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  triggers: []              # danh sách trigger KEDA nguyên bản
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true             # mặc định chặn mọi ingress, chỉ mở theo danh sách
+  ingressFrom: []           # - { namespaceSelector: {matchLabels: {...}}, podSelector: {matchLabels: {...}} }
+  egress: []                # rỗng = không giới hạn egress; điền để giới hạn (kèm DNS)
+
+httpRoute:                  # Gateway API
+  enabled: false
+  parentRefs: []            # - { name: shp-gateway, namespace: gateway }
+  hostnames: []
+  pathPrefix: /
+
+topologySpread:
+  enabled: true             # trải đều theo zone (NFR-A3)
+  maxSkew: 1
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile: { type: RuntimeDefault }
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: [ALL] }
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+
+# Argo Rollouts canary (bật cho prod/ml-service). Khi tắt dùng Deployment thường.
+rollout:
+  enabled: false
+  steps:
+    - setWeight: 10
+    - pause: { duration: 30s }
+    - setWeight: 50
+    - pause: { duration: 30s }
+  analysis:
+    enabled: false
+    prometheusAddress: http://prometheus.monitoring:9090
+    interval: 30s
+    count: 3
+    metrics: []             # - { name: error-rate, query: "...", successCondition: "result[0] < 0.01" }

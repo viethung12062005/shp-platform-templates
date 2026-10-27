@@ -1,0 +1,19 @@
+{{- if and .Values.autoscaling.enabled (not .Values.keda.enabled) }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "microservice.fullname" . }}
+  labels: {{- include "microservice.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: {{ ternary "argoproj.io/v1alpha1" "apps/v1" .Values.rollout.enabled }}
+    kind: {{ ternary "Rollout" "Deployment" .Values.rollout.enabled }}
+    name: {{ include "microservice.fullname" . }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }} }
+{{- end }}

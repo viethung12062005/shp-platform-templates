@@ -1,0 +1,23 @@
+image:
+  repository: example.azurecr.io/demo
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+replicaCount: 3
+env: { Logging__LogLevel__Default: Information }
+secretEnv:
+  - { name: ConnectionStrings__Postgres, secretName: demo-db, key: connection }
+config: { FeatureX: "true" }
+workloadIdentity: { enabled: true, clientId: 00000000-0000-0000-0000-000000000000 }
+keyVault:
+  enabled: true
+  name: kv-demo
+  tenantId: 00000000-0000-0000-0000-000000000000
+  objects: [{ name: db-password, type: secret }]
+autoscaling: { enabled: true, minReplicas: 3, maxReplicas: 9 }
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: gateway } }
+httpRoute:
+  enabled: true
+  parentRefs: [{ name: shp-gateway, namespace: gateway }]
+  hostnames: [api.example.org]

@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["image"],
+  "properties": {
+    "image": {
+      "type": "object",
+      "required": ["repository"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "replicaCount": { "type": "integer", "minimum": 1 },
+    "containerPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+    "env": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+    "secretEnv": {
+      "type": "array",
+      "items": { "type": "object", "required": ["name", "secretName", "key"],
+        "properties": { "name": { "type": "string" }, "secretName": { "type": "string" }, "key": { "type": "string" } } }
+    },
+    "workloadIdentity": { "type": "object", "properties": { "enabled": { "type": "boolean" }, "clientId": { "type": "string" } } },
+    "podSecurityContext": { "type": "object", "properties": { "runAsNonRoot": { "const": true } } },
+    "containerSecurityContext": {
+      "type": "object",
+      "properties": { "allowPrivilegeEscalation": { "const": false }, "readOnlyRootFilesystem": { "const": true } }
+    },
+    "rollout": { "type": "object", "properties": { "enabled": { "type": "boolean" } } }
+  }
+}

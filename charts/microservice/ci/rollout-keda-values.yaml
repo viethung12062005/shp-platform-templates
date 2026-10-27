@@ -1,0 +1,14 @@
+image:
+  repository: example.azurecr.io/demo
+  digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+rollout:
+  enabled: true
+  analysis:
+    enabled: true
+    metrics:
+      - { name: error-rate, query: "sum(rate(http_requests_total{status=~\"5..\"}[1m]))", successCondition: "result[0] < 0.01" }
+keda:
+  enabled: true
+  triggers:
+    - type: cron
+      metadata: { timezone: Asia/Ho_Chi_Minh, start: "50 6 * * 1-6", end: "0 9 * * 1-6", desiredReplicas: "6" }

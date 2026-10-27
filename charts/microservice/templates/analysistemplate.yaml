@@ -1,0 +1,20 @@
+{{- if and .Values.rollout.enabled .Values.rollout.analysis.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "microservice.fullname" . }}
+  labels: {{- include "microservice.labels" . | nindent 4 }}
+spec:
+  metrics:
+    {{- range (required "rollout.analysis.metrics không được rỗng" .Values.rollout.analysis.metrics) }}
+    - name: {{ .name }}
+      interval: {{ $.Values.rollout.analysis.interval }}
+      count: {{ $.Values.rollout.analysis.count }}
+      failureLimit: 0
+      successCondition: {{ .successCondition | quote }}
+      provider:
+        prometheus:
+          address: {{ $.Values.rollout.analysis.prometheusAddress }}
+          query: {{ .query | quote }}
+    {{- end }}
+{{- end }}
