@@ -31,7 +31,6 @@ jobs:
   promote-uat:
     if: github.ref == 'refs/heads/main'
     needs: container
-    environment: deploy-uat        # dừng chờ người duyệt (GitHub Environment)
     uses: OWNER/shp-platform-templates/.github/workflows/gitops-promote.yml@v0.1.0
     with:
       service: scheduling

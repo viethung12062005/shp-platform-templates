@@ -1,5 +1,5 @@
 # Reusable workflow: cập nhật digest image trong repo GitOps. Việc DEPLOY thật do Argo CD làm.
-# Caller phải khai báo `environment: deploy-<env>` ở job gọi workflow này để có bước phê duyệt.
+# Bước phê duyệt: job dưới gắn GitHub Environment `deploy-<env>` (job gọi reusable workflow không khai báo được environment).
 name: gitops-promote
 on:
   workflow_call:
@@ -19,6 +19,7 @@ jobs:
   promote:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: deploy-${{ inputs.environment }}
     steps:
       - name: Kiểm tra đầu vào
         env:
