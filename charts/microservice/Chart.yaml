@@ -1,0 +1,6 @@
+apiVersion: v2
+name: microservice
+description: Chart dùng chung cho mọi service của Smart Hospital Platform (Deployment hoặc Argo Rollout, bảo mật mặc định mức restricted).
+type: application
+version: 0.1.0
+appVersion: "0.0.0"

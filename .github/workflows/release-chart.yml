@@ -1,0 +1,41 @@
+# Phát hành chart lên ACR (OCI) khi gắn tag chart-vX.Y.Z. Đăng nhập Azure bằng OIDC.
+name: release-chart
+on:
+  push:
+    tags: ["chart-v*"]
+permissions:
+  contents: read
+jobs:
+  validate:
+    uses: ./.github/workflows/helm-validate.yml
+    with:
+      chart-path: charts/microservice
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release-chart
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false }
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with: { version: v3.19.0 }
+      - uses: azure/login@2035af27c2cea8ff426397d10e3edb28906b51df # v2.3.1
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_ACR_PUSH }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Đóng gói và đẩy chart
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#chart-v}"
+          helm package charts/microservice --version "$version" --app-version "$version"
+          token=$(az acr login --name "$ACR_NAME" --expose-token --output tsv --query accessToken)
+          echo "$token" | helm registry login "$ACR_NAME.azurecr.io" --username 00000000-0000-0000-0000-000000000000 --password-stdin
+          helm push "microservice-$version.tgz" "oci://$ACR_NAME.azurecr.io/helm"

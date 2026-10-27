@@ -1,0 +1,45 @@
+# Reusable workflow: kiểm tra Terraform (fmt, validate, tflint, quét cấu hình). KHÔNG apply. Plan chạy ở workflow của repo infra.
+name: terraform-checks
+on:
+  workflow_call:
+    inputs:
+      working-directory: { type: string, required: true, description: "Thư mục gốc chứa các stack/module" }
+      terraform-version: { type: string, default: "1.9.8" }
+permissions:
+  contents: read
+env:
+  TRIVY_IMAGE: ghcr.io/aquasecurity/trivy@sha256:ab70a02200597efa04748f210f793936eb647cbcdb0ea69cc30b226d6f5a22c7
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false }
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false
+      - uses: terraform-linters/setup-tflint@90f302c255ef959cbfb4bd10581afecdb7ece3e6 # v4.1.1
+      - name: terraform fmt
+        working-directory: ${{ inputs.working-directory }}
+        run: terraform fmt -check -recursive
+      - name: validate từng stack và module
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          set -euo pipefail
+          for d in $(find . -name '*.tf' -not -path '*/.terraform/*' -exec dirname {} \; | sort -u); do
+            echo "::group::validate $d"
+            terraform -chdir="$d" init -backend=false -input=false >/dev/null
+            terraform -chdir="$d" validate
+            echo "::endgroup::"
+          done
+      - name: tflint
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          tflint --init
+          tflint --recursive
+      - name: Quét cấu hình bảo mật (Trivy config)
+        run: |
+          docker run --rm -v "$PWD/${{ inputs.working-directory }}:/src:ro" "$TRIVY_IMAGE" config \
+            --exit-code 1 --severity HIGH,CRITICAL --no-progress /src

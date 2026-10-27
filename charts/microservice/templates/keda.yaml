@@ -1,0 +1,16 @@
+{{- if .Values.keda.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "microservice.fullname" . }}
+  labels: {{- include "microservice.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: {{ ternary "argoproj.io/v1alpha1" "apps/v1" .Values.rollout.enabled }}
+    kind: {{ ternary "Rollout" "Deployment" .Values.rollout.enabled }}
+    name: {{ include "microservice.fullname" . }}
+  minReplicaCount: {{ .Values.keda.minReplicaCount }}
+  maxReplicaCount: {{ .Values.keda.maxReplicaCount }}
+  triggers:
+    {{- toYaml (required "keda.triggers không được rỗng khi bật KEDA" .Values.keda.triggers) | nindent 4 }}
+{{- end }}

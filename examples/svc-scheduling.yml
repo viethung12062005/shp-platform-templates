@@ -1,0 +1,46 @@
+# VÍ DỤ workflow riêng của một service (đặt ở repo ứng dụng: .github/workflows/svc-scheduling.yml).
+# Mỗi service một file như thế này; chỉ chạy khi thư mục của service thay đổi. Đổi OWNER và phiên bản (@v0.1.0) theo repo thật.
+name: svc-scheduling
+on:
+  pull_request:
+    paths: ["services/scheduling/**", "libs/dotnet/**", ".github/workflows/svc-scheduling.yml"]
+  push:
+    branches: [main]
+    paths: ["services/scheduling/**", "libs/dotnet/**", ".github/workflows/svc-scheduling.yml"]
+permissions:
+  contents: read
+jobs:
+  ci:
+    uses: OWNER/shp-platform-templates/.github/workflows/dotnet-ci.yml@v0.1.0
+    with:
+      working-directory: services/scheduling
+  container:
+    needs: ci
+    uses: OWNER/shp-platform-templates/.github/workflows/container.yml@v0.1.0
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      context: services/scheduling
+      image-name: scheduling
+      push: ${{ github.ref == 'refs/heads/main' }}
+      acr-name: ${{ vars.ACR_NAME }}
+      azure-client-id: ${{ vars.AZURE_CLIENT_ID_ACR_PUSH }}
+      azure-tenant-id: ${{ vars.AZURE_TENANT_ID }}
+      azure-subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  promote-uat:
+    if: github.ref == 'refs/heads/main'
+    needs: container
+    environment: deploy-uat        # dừng chờ người duyệt (GitHub Environment)
+    uses: OWNER/shp-platform-templates/.github/workflows/gitops-promote.yml@v0.1.0
+    with:
+      service: scheduling
+      environment: uat
+      digest: ${{ needs.container.outputs.digest }}
+      gitops-owner: OWNER
+      gitops-repo: shp-gitops
+      gitops-app-id: ${{ vars.GITOPS_APP_ID }}
+      mode: commit
+    secrets:
+      gitops-app-private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+  # Lên prod: workflow riêng, chỉ chạy khi demo (environment: deploy-prod, mode: pr).

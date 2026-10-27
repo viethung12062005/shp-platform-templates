@@ -1,0 +1,53 @@
+# Reusable workflow: kiểm tra chart Helm (lint nghiêm ngặt, render, schema Kubernetes + CRD, cấu hình bảo mật).
+name: helm-validate
+on:
+  workflow_call:
+    inputs:
+      chart-path: { type: string, required: true }
+      values-dir: { type: string, default: ci, description: "Thư mục (tương đối với chart) chứa các file values để thử" }
+permissions:
+  contents: read
+env:
+  KUBECONFORM_URL: https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz
+  KUBECONFORM_SHA256: c31518ddd122663b3f3aa874cfe8178cb0988de944f29c74a0b9260920d115d3
+  TRIVY_IMAGE: ghcr.io/aquasecurity/trivy@sha256:ab70a02200597efa04748f210f793936eb647cbcdb0ea69cc30b226d6f5a22c7
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false }
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with: { version: v3.19.0 }
+      - name: Cài kubeconform (kiểm checksum)
+        run: |
+          curl -sSLo kubeconform.tgz "$KUBECONFORM_URL"
+          echo "$KUBECONFORM_SHA256  kubeconform.tgz" | sha256sum -c -
+          tar xzf kubeconform.tgz kubeconform
+          sudo mv kubeconform /usr/local/bin/
+      - name: Lint, render và kiểm schema cho từng bộ values
+        env:
+          CHART: ${{ inputs.chart-path }}
+          VALUES_DIR: ${{ inputs.values-dir }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=("$CHART/$VALUES_DIR"/*.yaml)
+          [ ${#files[@]} -gt 0 ] || { echo "Không có file values nào trong $CHART/$VALUES_DIR"; exit 1; }
+          mkdir -p rendered
+          for f in "${files[@]}"; do
+            name=$(basename "$f" .yaml)
+            echo "::group::$name"
+            helm lint "$CHART" --strict -f "$f"
+            helm template demo "$CHART" -f "$f" > "rendered/$name.yaml"
+            kubeconform -strict -summary \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              "rendered/$name.yaml"
+            echo "::endgroup::"
+          done
+      - name: Quét cấu hình bảo mật manifest (Trivy config)
+        run: |
+          docker run --rm -v "$PWD/rendered:/rendered:ro" "$TRIVY_IMAGE" config \
+            --exit-code 1 --severity HIGH,CRITICAL --no-progress /rendered

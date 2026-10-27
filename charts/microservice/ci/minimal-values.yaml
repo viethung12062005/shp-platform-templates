@@ -1,0 +1,3 @@
+image:
+  repository: example.azurecr.io/demo
+  tag: local
