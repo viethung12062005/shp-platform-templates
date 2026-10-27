@@ -50,4 +50,4 @@ jobs:
       - name: Quét cấu hình bảo mật manifest (Trivy config)
         run: |
           docker run --rm -v "$PWD/rendered:/rendered:ro" "$TRIVY_IMAGE" config \
-            --exit-code 1 --severity HIGH,CRITICAL --no-progress /rendered
+            --exit-code 1 --severity HIGH,CRITICAL /rendered
