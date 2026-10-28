@@ -1,5 +1,5 @@
 # VÍ DỤ workflow riêng của một service (đặt ở repo ứng dụng: .github/workflows/svc-scheduling.yml).
-# Mỗi service một file như thế này; chỉ chạy khi thư mục của service thay đổi. Đổi OWNER và phiên bản (@v0.1.0) theo repo thật.
+# Mỗi service một file như thế này; chỉ chạy khi thư mục của service thay đổi. Đã trỏ về viethung12062005; đổi phiên bản khi phát hành tag mới.
 name: svc-scheduling
 on:
   pull_request:
@@ -11,12 +11,12 @@ permissions:
   contents: read
 jobs:
   ci:
-    uses: OWNER/shp-platform-templates/.github/workflows/java-ci.yml@v0.1.0
+    uses: viethung12062005/shp-platform-templates/.github/workflows/java-ci.yml@v0.1.0
     with:
       modules: services/scheduling
   container:
     needs: ci
-    uses: OWNER/shp-platform-templates/.github/workflows/container.yml@v0.1.0
+    uses: viethung12062005/shp-platform-templates/.github/workflows/container.yml@v0.1.0
     permissions:
       contents: read
       id-token: write
@@ -32,12 +32,12 @@ jobs:
   promote-uat:
     if: github.ref == 'refs/heads/main'
     needs: container
-    uses: OWNER/shp-platform-templates/.github/workflows/gitops-promote.yml@v0.1.0
+    uses: viethung12062005/shp-platform-templates/.github/workflows/gitops-promote.yml@v0.1.0
     with:
       service: scheduling
       environment: uat
       digest: ${{ needs.container.outputs.digest }}
-      gitops-owner: OWNER
+      gitops-owner: viethung12062005
       gitops-repo: shp-gitops
       gitops-app-id: ${{ vars.GITOPS_APP_ID }}
       mode: commit
