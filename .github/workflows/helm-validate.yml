@@ -1,10 +1,10 @@
-# Reusable workflow: kiểm tra chart Helm (lint nghiêm ngặt, render, schema Kubernetes + CRD, cấu hình bảo mật).
+# Reusable workflow: validate a Helm chart (strict lint, render, Kubernetes + CRD schemas, security configuration).
 name: helm-validate
 on:
   workflow_call:
     inputs:
       chart-path: { type: string, required: true }
-      values-dir: { type: string, default: ci, description: "Thư mục (tương đối với chart) chứa các file values để thử" }
+      values-dir: { type: string, default: ci, description: "Directory (relative to the chart) holding the values files to test" }
 permissions:
   contents: read
 env:
@@ -20,13 +20,13 @@ jobs:
         with: { persist-credentials: false }
       - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with: { version: v3.19.0 }
-      - name: Cài kubeconform (kiểm checksum)
+      - name: Install kubeconform (checksum verified)
         run: |
           curl -sSLo kubeconform.tgz "$KUBECONFORM_URL"
           echo "$KUBECONFORM_SHA256  kubeconform.tgz" | sha256sum -c -
           tar xzf kubeconform.tgz kubeconform
           sudo mv kubeconform /usr/local/bin/
-      - name: Lint, render và kiểm schema cho từng bộ values
+      - name: Lint, render and schema-check each values file
         env:
           CHART: ${{ inputs.chart-path }}
           VALUES_DIR: ${{ inputs.values-dir }}
@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           files=("$CHART/$VALUES_DIR"/*.yaml)
-          [ ${#files[@]} -gt 0 ] || { echo "Không có file values nào trong $CHART/$VALUES_DIR"; exit 1; }
+          [ ${#files[@]} -gt 0 ] || { echo "No values files in $CHART/$VALUES_DIR"; exit 1; }
           mkdir -p rendered
           for f in "${files[@]}"; do
             name=$(basename "$f" .yaml)
@@ -47,7 +47,7 @@ jobs:
               "rendered/$name.yaml"
             echo "::endgroup::"
           done
-      - name: Quét cấu hình bảo mật manifest (Trivy config)
+      - name: Scan manifest security configuration (Trivy config)
         run: |
           docker run --rm -v "$PWD/rendered:/rendered:ro" "$TRIVY_IMAGE" config \
             --exit-code 1 --severity HIGH,CRITICAL /rendered

@@ -1,4 +1,4 @@
-# Phát hành chart lên ACR (OCI) khi gắn tag chart-vX.Y.Z. Đăng nhập Azure bằng OIDC.
+# Publish the chart to ACR (OCI) when a chart-vX.Y.Z tag is pushed. Signs in to Azure with OIDC.
 name: release-chart
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID_ACR_PUSH }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Đóng gói và đẩy chart
+      - name: Package and push the chart
         env:
           ACR_NAME: ${{ vars.ACR_NAME }}
           TAG: ${{ github.ref_name }}

@@ -1,4 +1,4 @@
-# CI của chính repo templates: kiểm tra workflow và chart.
+# CI for the templates repo itself: validates the workflows and the chart.
 name: ci
 on:
   pull_request:

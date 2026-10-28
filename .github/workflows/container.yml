@@ -1,12 +1,12 @@
-# Reusable workflow: build image → lint Dockerfile → quét lỗ hổng → SBOM → (khi push=true) đẩy lên ACR + ký cosign.
-# Đăng nhập Azure bằng OIDC (không có secret). Kết quả: digest của image.
+# Reusable workflow: build image -> lint Dockerfile -> vulnerability scan -> SBOM -> (when push=true) push to ACR + cosign signature.
+# Signs in to Azure with OIDC (no secrets). Output: the image digest.
 name: container
 on:
   workflow_call:
     inputs:
       context: { type: string, required: true }
       dockerfile: { type: string, default: Dockerfile }
-      image-name: { type: string, required: true, description: "Tên repo trong ACR, ví dụ scheduling" }
+      image-name: { type: string, required: true, description: "Repository name in ACR, e.g. scheduling" }
       push: { type: boolean, default: false }
       acr-name: { type: string, default: "" }
       azure-client-id: { type: string, default: "" }
@@ -14,12 +14,12 @@ on:
       azure-subscription-id: { type: string, default: "" }
     outputs:
       digest:
-        description: "sha256 digest của image đã đẩy"
+        description: "sha256 digest of the pushed image"
         value: ${{ jobs.build.outputs.digest }}
 permissions:
   contents: read
 env:
-  # Trivy chạy bằng image ghim theo digest (phiên bản 0.58.1), không dùng action bên thứ ba.
+  # Trivy runs from an image pinned by digest (version 0.58.1); no third-party action is used.
   TRIVY_IMAGE: ghcr.io/aquasecurity/trivy@sha256:ab70a02200597efa04748f210f793936eb647cbcdb0ea69cc30b226d6f5a22c7
 jobs:
   build:
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-      id-token: write   # OIDC cho Azure và cosign keyless
+      id-token: write   # OIDC for Azure and keyless cosign
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
@@ -39,7 +39,7 @@ jobs:
           dockerfile: ${{ inputs.context }}/${{ inputs.dockerfile }}
           failure-threshold: warning
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-      - name: Build (nạp vào docker cục bộ để quét)
+      - name: Build (load into local Docker for scanning)
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: ${{ inputs.context }}
@@ -48,7 +48,7 @@ jobs:
           tags: scan/${{ inputs.image-name }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Quét lỗ hổng (chặn HIGH/CRITICAL đã có bản vá)
+      - name: Vulnerability scan (block fixable HIGH/CRITICAL)
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image \
             --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress \
@@ -60,17 +60,17 @@ jobs:
           format: spdx-json
           output-file: sbom.spdx.json
           upload-artifact: true
-      - name: Đăng nhập Azure (OIDC)
+      - name: Sign in to Azure (OIDC)
         if: inputs.push
         uses: azure/login@2035af27c2cea8ff426397d10e3edb28906b51df # v2.3.1
         with:
           client-id: ${{ inputs.azure-client-id }}
           tenant-id: ${{ inputs.azure-tenant-id }}
           subscription-id: ${{ inputs.azure-subscription-id }}
-      - name: Đăng nhập ACR
+      - name: Sign in to ACR
         if: inputs.push
         run: az acr login --name "${{ inputs.acr-name }}"
-      - name: Đẩy image lên ACR
+      - name: Push image to ACR
         id: push
         if: inputs.push
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
@@ -84,7 +84,7 @@ jobs:
           sbom: false
       - uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
         if: inputs.push
-      - name: Ký image và gắn SBOM (cosign keyless)
+      - name: Sign image and attach SBOM (keyless cosign)
         if: inputs.push
         env:
           IMAGE: ${{ inputs.acr-name }}.azurecr.io/${{ inputs.image-name }}@${{ steps.push.outputs.digest }}

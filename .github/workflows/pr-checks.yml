@@ -1,4 +1,4 @@
-# Reusable workflow: kiểm tra chung cho mọi PR (secret, workflow, phụ thuộc có lỗ hổng).
+# Reusable workflow: shared checks for every PR (secrets, workflows, vulnerable dependencies).
 name: pr-checks
 on:
   workflow_call:
@@ -26,14 +26,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with: { persist-credentials: false }
-      - name: Cài actionlint (kiểm checksum) và chạy
+      - name: Install actionlint (checksum verified) and run it
         run: |
           curl -sSLo actionlint.tgz "$ACTIONLINT_URL"
           echo "$ACTIONLINT_SHA256  actionlint.tgz" | sha256sum -c -
           tar xzf actionlint.tgz actionlint
           ./actionlint
   dependency-review:
-    # Cần GitHub Advanced Security (repo private gói thường không có): bỏ qua thay vì làm PR đỏ.
+    # Needs GitHub Advanced Security (not available on private repos on the standard plan): skipped instead of failing the PR.
     if: github.event_name == 'pull_request' && !github.event.repository.private
     runs-on: ubuntu-latest
     timeout-minutes: 5

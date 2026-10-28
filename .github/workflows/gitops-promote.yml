@@ -1,16 +1,16 @@
-# Reusable workflow: cập nhật digest image trong repo GitOps. Việc DEPLOY thật do Argo CD làm.
-# Bước phê duyệt: job dưới gắn GitHub Environment `deploy-<env>` (job gọi reusable workflow không khai báo được environment).
+# Reusable workflow: update the image digest in the GitOps repo. The actual DEPLOY is done by Argo CD.
+# Approval gate: the job below uses the GitHub Environment `deploy-<env>` (a job that calls a reusable workflow cannot declare an environment).
 name: gitops-promote
 on:
   workflow_call:
     inputs:
       service: { type: string, required: true }
-      environment: { type: string, required: true, description: "uat hoặc prod" }
+      environment: { type: string, required: true, description: "uat or prod" }
       digest: { type: string, required: true, description: "sha256:..." }
-      gitops-owner: { type: string, required: true, description: "Chủ sở hữu (user/org) của repo GitOps" }
-      gitops-repo: { type: string, required: true, description: "Tên repo GitOps (không kèm owner)" }
-      gitops-app-id: { type: string, required: true, description: "ID của GitHub App bot (không phải secret)" }
-      mode: { type: string, default: pr, description: "pr: mở Pull Request; commit: commit thẳng vào main (chỉ dùng cho uat)" }
+      gitops-owner: { type: string, required: true, description: "Owner (user/org) of the GitOps repo" }
+      gitops-repo: { type: string, required: true, description: "GitOps repo name (without owner)" }
+      gitops-app-id: { type: string, required: true, description: "ID of the bot GitHub App (not a secret)" }
+      mode: { type: string, default: pr, description: "pr: open a Pull Request; commit: commit straight to main (uat only)" }
     secrets:
       gitops-app-private-key: { required: true }
 permissions:
@@ -21,18 +21,18 @@ jobs:
     timeout-minutes: 10
     environment: deploy-${{ inputs.environment }}
     steps:
-      - name: Kiểm tra đầu vào
+      - name: Validate inputs
         env:
           ENVIRONMENT: ${{ inputs.environment }}
           DIGEST: ${{ inputs.digest }}
           SERVICE: ${{ inputs.service }}
           MODE: ${{ inputs.mode }}
         run: |
-          [[ "$ENVIRONMENT" =~ ^(uat|prod)$ ]] || { echo "environment phải là uat hoặc prod"; exit 1; }
-          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "digest không hợp lệ"; exit 1; }
-          [[ "$SERVICE" =~ ^[a-z0-9-]+$ ]] || { echo "tên service không hợp lệ"; exit 1; }
-          [[ "$MODE" =~ ^(pr|commit)$ ]] || { echo "mode phải là pr hoặc commit"; exit 1; }
-          if [ "$ENVIRONMENT" = prod ] && [ "$MODE" = commit ]; then echo "prod luôn phải qua PR"; exit 1; fi
+          [[ "$ENVIRONMENT" =~ ^(uat|prod)$ ]] || { echo "environment must be uat or prod"; exit 1; }
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "invalid digest"; exit 1; }
+          [[ "$SERVICE" =~ ^[a-z0-9-]+$ ]] || { echo "invalid service name"; exit 1; }
+          [[ "$MODE" =~ ^(pr|commit)$ ]] || { echo "mode must be pr or commit"; exit 1; }
+          if [ "$ENVIRONMENT" = prod ] && [ "$MODE" = commit ]; then echo "prod must always go through a PR"; exit 1; fi
       - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
         id: app
         with:
@@ -45,15 +45,15 @@ jobs:
           repository: ${{ inputs.gitops-owner }}/${{ inputs.gitops-repo }}
           token: ${{ steps.app.outputs.token }}
           persist-credentials: true
-      - name: Cập nhật digest
+      - name: Update digest
         env:
           FILE: envs/${{ inputs.environment }}/${{ inputs.service }}/values.yaml
           DIGEST: ${{ inputs.digest }}
         run: |
-          [ -f "$FILE" ] || { echo "Không có $FILE trong repo GitOps"; exit 1; }
+          [ -f "$FILE" ] || { echo "$FILE not found in the GitOps repo"; exit 1; }
           yq -i '.image.digest = strenv(DIGEST)' "$FILE"
           git diff --stat
-      - name: Commit và đẩy
+      - name: Commit and push
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           SERVICE: ${{ inputs.service }}
@@ -66,9 +66,9 @@ jobs:
           git config user.name "shp-gitops-bot"
           git config user.email "shp-gitops-bot@users.noreply.github.com"
           short="${DIGEST#sha256:}"; short="${short:0:12}"
-          msg="promote($ENVIRONMENT): $SERVICE → $short (từ $SOURCE_SHA)"
+          msg="promote($ENVIRONMENT): $SERVICE -> $short (from $SOURCE_SHA)"
           git add -A
-          git diff --cached --quiet && { echo "Không có thay đổi (digest đã được áp dụng)"; exit 0; }
+          git diff --cached --quiet && { echo "No changes (digest already applied)"; exit 0; }
           if [ "$MODE" = commit ]; then
             git commit -m "$msg"
             git push origin HEAD:main
@@ -77,5 +77,5 @@ jobs:
             git checkout -b "$branch"
             git commit -m "$msg"
             git push origin "$branch"
-            gh pr create --title "$msg" --body "Cập nhật digest image của \`$SERVICE\` cho môi trường \`$ENVIRONMENT\`. Cần review trước khi merge." --base main --head "$branch"
+            gh pr create --title "$msg" --body "Update the image digest of \`$SERVICE\` for environment \`$ENVIRONMENT\`. Needs review before merge." --base main --head "$branch"
           fi

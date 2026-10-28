@@ -1,5 +1,5 @@
-# Reusable workflow: CI cho module Java (Maven multi-module ở repo ứng dụng, ADR-0015).
-# Chạy đúng lệnh dev chạy ở máy: mvn -pl <modules> -am verify  →  Spotless check, compile -Werror, test (Testcontainers), JaCoCo ≥ ngưỡng.
+# Reusable workflow: CI for Java modules (Maven multi-module in the application repo, ADR-0015).
+# Runs the same command developers run locally: mvn -pl <modules> -am verify  ->  Spotless check, compile -Werror, tests (Testcontainers), JaCoCo >= threshold.
 name: java-ci
 on:
   workflow_call:
@@ -7,7 +7,7 @@ on:
       modules:
         type: string
         required: true
-        description: "Danh sách module Maven (phân cách bằng dấu phẩy), ví dụ services/scheduling hoặc libs/java/shp-authz,libs/java/shp-web"
+        description: "Comma-separated list of Maven modules, e.g. services/scheduling or libs/java/shp-authz,libs/java/shp-web"
       java-version: { type: string, default: "21" }
 permissions:
   contents: read
@@ -23,16 +23,16 @@ jobs:
           distribution: temurin
           java-version: ${{ inputs.java-version }}
           cache: maven
-      - name: Kiểm đầu vào
+      - name: Validate inputs
         env:
           MODULES: ${{ inputs.modules }}
         run: |
-          [[ "$MODULES" =~ ^[a-z0-9/_.,-]+$ ]] || { echo "modules không hợp lệ"; exit 1; }
+          [[ "$MODULES" =~ ^[a-z0-9/_.,-]+$ ]] || { echo "invalid modules"; exit 1; }
       - name: Maven verify (format, build -Werror, test, coverage)
         env:
           MODULES: ${{ inputs.modules }}
         run: mvn -B --no-transfer-progress -pl "$MODULES" -am verify
-      - name: Báo cáo test khi lỗi
+      - name: Upload test reports on failure
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
