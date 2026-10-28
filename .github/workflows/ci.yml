@@ -9,6 +9,7 @@ permissions:
 jobs:
   checks:
     uses: ./.github/workflows/pr-checks.yml
+    secrets: inherit   # passes NVD_API_KEY (if set) to the OWASP Dependency-Check job
     permissions:
       contents: read
       pull-requests: read

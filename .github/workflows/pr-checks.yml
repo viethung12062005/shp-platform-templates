@@ -2,11 +2,20 @@
 name: pr-checks
 on:
   workflow_call:
+    secrets:
+      NVD_API_KEY:
+        required: false
+        description: "Free NVD API key; without it the OWASP Dependency-Check job is skipped"
 permissions:
   contents: read
 env:
   # Trivy runs from an image pinned by digest (version 0.58.1), same as in container.yml; no third-party action.
   TRIVY_IMAGE: ghcr.io/aquasecurity/trivy@sha256:ab70a02200597efa04748f210f793936eb647cbcdb0ea69cc30b226d6f5a22c7
+  # OSV-Scanner binary, version and SHA-256 taken from the v2.7.0 release (osv-scanner_SHA256SUMS).
+  OSV_URL: https://github.com/google/osv-scanner/releases/download/v2.7.0/osv-scanner_linux_amd64
+  OSV_SHA256: 160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b
+  # OWASP Dependency-Check 13.0.0, pinned by image index digest.
+  DEPCHECK_IMAGE: owasp/dependency-check@sha256:0e8f69ad5b00d62000937f4e57189812343f6903d9c83ee712012d51542a020a
   ACTIONLINT_URL: https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
   ACTIONLINT_SHA256: 023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
 jobs:
@@ -46,7 +55,60 @@ jobs:
         with: { persist-credentials: false }
       - name: Scan dependencies (Trivy fs)
         run: |
-          docker run --rm -v "$PWD:/src:ro" -v trivy-cache:/root/.cache "$TRIVY_IMAGE" fs             --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress /src
+          docker run --rm -v "$PWD:/src:ro" -v trivy-cache:/root/.cache "$TRIVY_IMAGE" fs \
+            --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress /src
+  osv-scanner:
+    # Second opinion from the OSV database (covers ecosystems Trivy may miss). Report-only for now: it never fails the PR;
+    # Trivy fs and Dependency-Check are the blocking gates. Silence a reviewed finding in osv-scanner.toml.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false }
+      - name: Install OSV-Scanner (checksum verified)
+        run: |
+          curl -sSLo osv-scanner "$OSV_URL"
+          echo "$OSV_SHA256  osv-scanner" | sha256sum -c -
+          chmod +x osv-scanner
+      - name: Scan lockfiles and manifests
+        run: |
+          ./osv-scanner scan source --recursive --format table . | tee osv.txt || true
+          { echo '### OSV-Scanner'; echo '```'; head -200 osv.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+  dependency-check:
+    # OWASP Dependency-Check needs a free NVD API key (https://nvd.nist.gov/developers/request-an-api-key) stored as the
+    # NVD_API_KEY secret and passed to this workflow (secrets: inherit). Without the key the job is skipped, not failed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+    steps:
+      - name: Check for NVD API key
+        id: key
+        run: |
+          if [ -n "$NVD_API_KEY" ]; then echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else echo "::notice::NVD_API_KEY not provided: skipping OWASP Dependency-Check"; fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: steps.key.outputs.enabled == 'true'
+        with: { persist-credentials: false }
+      - name: OWASP Dependency-Check (fail on CVSS >= 7)
+        if: steps.key.outputs.enabled == 'true'
+        run: |
+          mkdir -p dc-report
+          docker run --rm -e NVD_API_KEY \
+            -v "$PWD:/src:ro" -v "$PWD/dc-report:/report" "$DEPCHECK_IMAGE" \
+            --scan /src --format HTML --format JSON --out /report \
+            --failOnCVSS 7 --nvdApiKey "$NVD_API_KEY" --disableAssembly
+      - name: Upload Dependency-Check report
+        if: always() && steps.key.outputs.enabled == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependency-check-report
+          path: dc-report/
+          retention-days: 7
   dependency-review:
     # Needs GitHub Advanced Security (not available on private repos on the standard plan): skipped instead of failing the PR.
     if: github.event_name == 'pull_request' && !github.event.repository.private
