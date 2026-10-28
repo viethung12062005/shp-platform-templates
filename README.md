@@ -18,7 +18,7 @@ nhưng gọi các template này để đồng nhất kiểm tra. Quyết định
 | `examples/svc-scheduling.yml` | Mẫu workflow riêng của một service |
 
 ## Cách dùng
-Service gọi bằng `uses: OWNER/shp-platform-templates/.github/workflows/<file>@<tag>` (xem `examples/`). **Luôn ghim theo tag/SHA**, không dùng `@main`, để thay đổi template không làm vỡ mọi service cùng lúc.
+Service gọi bằng `uses: viethung12062005/shp-platform-templates/.github/workflows/<file>@<tag>` (xem `examples/`). **Luôn ghim theo tag/SHA**, không dùng `@main`, để thay đổi template không làm vỡ mọi service cùng lúc.
 Bật *Settings → Actions → Access → Accessible from repositories owned by the user* nếu repo này private.
 
 ## Nguyên tắc bảo mật
