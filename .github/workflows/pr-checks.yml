@@ -94,14 +94,31 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.key.outputs.enabled == 'true'
         with: { persist-credentials: false }
+      - name: Restore NVD data cache
+        if: steps.key.outputs.enabled == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: dc-data
+          key: dependency-check-nvd-${{ github.run_id }}
+          restore-keys: dependency-check-nvd-
       - name: OWASP Dependency-Check (fail on CVSS >= 7)
         if: steps.key.outputs.enabled == 'true'
         run: |
-          mkdir -p dc-report
+          # The container runs as a non-root user: give it write access to the mounted data and report directories.
+          mkdir -p dc-report dc-data
+          chmod -R 777 dc-report dc-data
           docker run --rm -e NVD_API_KEY \
-            -v "$PWD:/src:ro" -v "$PWD/dc-report:/report" "$DEPCHECK_IMAGE" \
+            -v "$PWD:/src:ro" -v "$PWD/dc-report:/report" -v "$PWD/dc-data:/usr/share/dependency-check/data" \
+            "$DEPCHECK_IMAGE" \
             --scan /src --format HTML --format JSON --out /report \
             --failOnCVSS 7 --nvdApiKey "$NVD_API_KEY" --disableAssembly
+      - name: Save NVD data cache
+        # Save even when the scan fails on a real finding, so the next run does not re-download the NVD data.
+        if: always() && steps.key.outputs.enabled == 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: dc-data
+          key: dependency-check-nvd-${{ github.run_id }}
       - name: Upload Dependency-Check report
         if: always() && steps.key.outputs.enabled == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
