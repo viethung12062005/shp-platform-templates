@@ -5,6 +5,8 @@ on:
 permissions:
   contents: read
 env:
+  # Trivy runs from an image pinned by digest (version 0.58.1), same as in container.yml; no third-party action.
+  TRIVY_IMAGE: ghcr.io/aquasecurity/trivy@sha256:ab70a02200597efa04748f210f793936eb647cbcdb0ea69cc30b226d6f5a22c7
   ACTIONLINT_URL: https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
   ACTIONLINT_SHA256: 023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
 jobs:
@@ -32,6 +34,19 @@ jobs:
           echo "$ACTIONLINT_SHA256  actionlint.tgz" | sha256sum -c -
           tar xzf actionlint.tgz actionlint
           ./actionlint
+  dependency-scan:
+    # Works on private repos with no GitHub Advanced Security: scans pom.xml, requirements/pyproject, lockfiles in the repo.
+    # Blocks HIGH/CRITICAL vulnerabilities that already have a fixed version; unfixed ones are reported by the image scan.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false }
+      - name: Scan dependencies (Trivy fs)
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -v trivy-cache:/root/.cache "$TRIVY_IMAGE" fs             --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress /src
   dependency-review:
     # Needs GitHub Advanced Security (not available on private repos on the standard plan): skipped instead of failing the PR.
     if: github.event_name == 'pull_request' && !github.event.repository.private
