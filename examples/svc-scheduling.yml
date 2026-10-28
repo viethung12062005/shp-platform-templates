@@ -3,17 +3,17 @@
 name: svc-scheduling
 on:
   pull_request:
-    paths: ["services/scheduling/**", "libs/dotnet/**", ".github/workflows/svc-scheduling.yml"]
+    paths: ["services/scheduling/**", "libs/java/**", "contracts/**", "pom.xml", ".github/workflows/svc-scheduling.yml"]
   push:
     branches: [main]
-    paths: ["services/scheduling/**", "libs/dotnet/**", ".github/workflows/svc-scheduling.yml"]
+    paths: ["services/scheduling/**", "libs/java/**", "contracts/**", "pom.xml", ".github/workflows/svc-scheduling.yml"]
 permissions:
   contents: read
 jobs:
   ci:
-    uses: OWNER/shp-platform-templates/.github/workflows/dotnet-ci.yml@v0.1.0
+    uses: OWNER/shp-platform-templates/.github/workflows/java-ci.yml@v0.1.0
     with:
-      working-directory: services/scheduling
+      modules: services/scheduling
   container:
     needs: ci
     uses: OWNER/shp-platform-templates/.github/workflows/container.yml@v0.1.0
@@ -21,7 +21,8 @@ jobs:
       contents: read
       id-token: write
     with:
-      context: services/scheduling
+      context: .
+      dockerfile: services/scheduling/Dockerfile
       image-name: scheduling
       push: ${{ github.ref == 'refs/heads/main' }}
       acr-name: ${{ vars.ACR_NAME }}

@@ -1,0 +1,41 @@
+# Reusable workflow: CI cho module Java (Maven multi-module ở repo ứng dụng, ADR-0015).
+# Chạy đúng lệnh dev chạy ở máy: mvn -pl <modules> -am verify  →  Spotless check, compile -Werror, test (Testcontainers), JaCoCo ≥ ngưỡng.
+name: java-ci
+on:
+  workflow_call:
+    inputs:
+      modules:
+        type: string
+        required: true
+        description: "Danh sách module Maven (phân cách bằng dấu phẩy), ví dụ services/scheduling hoặc libs/java/shp-authz,libs/java/shp-web"
+      java-version: { type: string, default: "21" }
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false }
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java-version }}
+          cache: maven
+      - name: Kiểm đầu vào
+        env:
+          MODULES: ${{ inputs.modules }}
+        run: |
+          [[ "$MODULES" =~ ^[a-z0-9/_.,-]+$ ]] || { echo "modules không hợp lệ"; exit 1; }
+      - name: Maven verify (format, build -Werror, test, coverage)
+        env:
+          MODULES: ${{ inputs.modules }}
+        run: mvn -B --no-transfer-progress -pl "$MODULES" -am verify
+      - name: Báo cáo test khi lỗi
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: surefire-reports
+          path: "**/target/surefire-reports/"
+          retention-days: 7

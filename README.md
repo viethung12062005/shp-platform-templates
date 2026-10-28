@@ -7,8 +7,8 @@ nhưng gọi các template này để đồng nhất kiểm tra. Quyết định
 | Đường dẫn | Mục đích |
 |---|---|
 | `charts/microservice/` | Chart cho mọi service: Deployment hoặc Argo Rollout (canary), HPA/KEDA, PDB, NetworkPolicy, HTTPRoute, Workload Identity, Key Vault CSI. Bảo mật mặc định mức *restricted* |
-| `.github/workflows/dotnet-ci.yml` | Format, build (warning = lỗi), test + ngưỡng coverage, quét package lỗ hổng |
-| `.github/workflows/python-ci.yml` | ruff, mypy, pytest + coverage, pip-audit |
+| `.github/workflows/java-ci.yml` | Maven `-pl <modules> -am verify`: Spotless check, build `-Werror`, test (Testcontainers), JaCoCo ≥ ngưỡng |
+| `.github/workflows/python-ci.yml` | (service ai, ml) ruff, mypy, pytest + coverage, pip-audit |
 | `.github/workflows/container.yml` | hadolint → build → Trivy (chặn HIGH/CRITICAL) → SBOM → push ACR (OIDC) → ký cosign |
 | `.github/workflows/helm-validate.yml` | `helm lint --strict`, render, kubeconform (kể cả CRD), Trivy config |
 | `.github/workflows/terraform-checks.yml` | `fmt`, `validate`, tflint, Trivy config (không `apply`) |
