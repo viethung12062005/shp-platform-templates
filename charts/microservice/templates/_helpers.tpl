@@ -69,7 +69,7 @@ spec:
       ports:
         - { name: http, containerPort: {{ .Values.containerPort }} }
       env:
-        - { name: ASPNETCORE_URLS, value: {{ printf "http://+:%v" .Values.containerPort | quote }} }
+        - { name: SERVER_PORT, value: {{ .Values.containerPort | quote }} }   # Spring Boot đọc trực tiếp
         {{- range $k, $v := .Values.env }}
         - { name: {{ $k }}, value: {{ $v | quote }} }
         {{- end }}
