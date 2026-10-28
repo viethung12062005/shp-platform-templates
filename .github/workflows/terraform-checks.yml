@@ -1,9 +1,9 @@
-# Reusable workflow: kiểm tra Terraform (fmt, validate, tflint, quét cấu hình). KHÔNG apply. Plan chạy ở workflow của repo infra.
+# Reusable workflow: Terraform checks (fmt, validate, tflint, configuration scan). NEVER applies. Plans run in the infra repo's own workflow.
 name: terraform-checks
 on:
   workflow_call:
     inputs:
-      working-directory: { type: string, required: true, description: "Thư mục gốc chứa các stack/module" }
+      working-directory: { type: string, required: true, description: "Root directory containing the stacks/modules" }
       terraform-version: { type: string, default: "1.9.8" }
 permissions:
   contents: read
@@ -24,7 +24,7 @@ jobs:
       - name: terraform fmt
         working-directory: ${{ inputs.working-directory }}
         run: terraform fmt -check -recursive
-      - name: validate từng stack và module
+      - name: validate each stack and module
         working-directory: ${{ inputs.working-directory }}
         run: |
           set -euo pipefail
@@ -39,7 +39,7 @@ jobs:
         run: |
           tflint --init
           tflint --recursive
-      - name: Quét cấu hình bảo mật (Trivy config)
+      - name: Scan security configuration (Trivy config)
         run: |
           docker run --rm -v "$PWD/${{ inputs.working-directory }}:/src:ro" "$TRIVY_IMAGE" config \
             --exit-code 1 --severity HIGH,CRITICAL /src

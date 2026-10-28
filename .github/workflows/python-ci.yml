@@ -23,17 +23,17 @@ jobs:
           python-version: ${{ inputs.python-version }}
           cache: pip
           cache-dependency-path: ${{ inputs.working-directory }}/pyproject.toml
-      - name: Cài phụ thuộc
+      - name: Install dependencies
         run: python -m pip install -e ".[dev]"
-      - name: Lint và format
+      - name: Lint and format
         run: |
           ruff check .
           ruff format --check .
-      - name: Kiểm kiểu
+      - name: Type check
         run: mypy .
       - name: Test + coverage
         env:
           THRESHOLD: ${{ inputs.coverage-threshold }}
         run: pytest --cov --cov-fail-under="$THRESHOLD"
-      - name: Quét lỗ hổng phụ thuộc
+      - name: Dependency vulnerability scan
         run: pip-audit
