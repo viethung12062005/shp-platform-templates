@@ -45,6 +45,7 @@ jobs:
           context: ${{ inputs.context }}
           file: ${{ inputs.context }}/${{ inputs.dockerfile }}
           load: true
+          pull: true   # luôn kéo base image mới nhất: cache GHA không được giữ bản distroless cũ còn lỗi đã vá
           tags: scan/${{ inputs.image-name }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
