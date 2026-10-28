@@ -33,7 +33,8 @@ jobs:
           tar xzf actionlint.tgz actionlint
           ./actionlint
   dependency-review:
-    if: github.event_name == 'pull_request'
+    # Cần GitHub Advanced Security (repo private gói thường không có): bỏ qua thay vì làm PR đỏ.
+    if: github.event_name == 'pull_request' && !github.event.repository.private
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
