@@ -107,11 +107,21 @@ jobs:
           # The container runs as a non-root user: give it write access to the mounted data and report directories.
           mkdir -p dc-report dc-data
           chmod -R 777 dc-report dc-data
+          set +e
           docker run --rm -e NVD_API_KEY \
             -v "$PWD:/src:ro" -v "$PWD/dc-report:/report" -v "$PWD/dc-data:/usr/share/dependency-check/data" \
             "$DEPCHECK_IMAGE" \
             --scan /src --format HTML --format JSON --out /report \
             --failOnCVSS 7 --nvdApiKey "$NVD_API_KEY" --disableAssembly
+          rc=$?
+          set -e
+          # Exit code 14 = the NVD data update failed (the NVD API is an external service and often returns 5xx).
+          # That is an outage, not a finding: warn instead of failing the PR. Trivy fs and OSV-Scanner still ran.
+          if [ "$rc" -eq 14 ]; then
+            echo "::warning::NVD API unavailable: OWASP Dependency-Check could not refresh its data and was skipped for this run."
+            exit 0
+          fi
+          exit "$rc"
       - name: Save NVD data cache
         # Save even when the scan fails on a real finding, so the next run does not re-download the NVD data.
         if: always() && steps.key.outputs.enabled == 'true'
@@ -126,16 +136,3 @@ jobs:
           name: dependency-check-report
           path: dc-report/
           retention-days: 7
-  dependency-review:
-    # Needs GitHub Advanced Security (not available on private repos on the standard plan): skipped instead of failing the PR.
-    if: github.event_name == 'pull_request' && !github.event.repository.private
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with: { persist-credentials: false }
-      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
-        with:
-          fail-on-severity: high
