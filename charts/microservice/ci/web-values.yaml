@@ -1,0 +1,14 @@
+# Web app (nginx serving the SPA): root path, runtime config file, nginx health endpoint.
+image:
+  repository: example.azurecr.io/web
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+probes:
+  readyPath: /healthz
+  livePath: /healthz
+httpRoute:
+  enabled: true
+  parentRefs: [ { name: shp-gateway } ]
+  pathPrefix: /
+configFiles:
+  - path: /usr/share/nginx/html/config.json
+    content: '{"authMode":"oidc","authority":"https://login.example.test/realms/shp","clientId":"shp-web","apiBase":""}'

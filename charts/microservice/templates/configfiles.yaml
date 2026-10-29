@@ -1,0 +1,12 @@
+{{- if .Values.configFiles }}
+# Files mounted into the container (see configFiles in values.yaml); keys are positional (file-0, file-1, ...).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-files" (include "microservice.fullname" .) }}
+  labels: {{- include "microservice.labels" . | nindent 4 }}
+data:
+  {{- range $i, $f := .Values.configFiles }}
+  {{ printf "file-%d" $i }}: {{ required "configFiles[].content is required" $f.content | quote }}
+  {{- end }}
+{{- end }}

@@ -11,7 +11,9 @@ spec:
   {{- end }}
   rules:
     - matches:
-        - path: { type: PathPrefix, value: {{ .Values.httpRoute.pathPrefix | quote }} }
+        {{- range (.Values.httpRoute.pathPrefixes | default (list .Values.httpRoute.pathPrefix)) }}
+        - path: { type: PathPrefix, value: {{ . | quote }} }
+        {{- end }}
       backendRefs:
         - { name: {{ include "microservice.fullname" . }}, port: {{ .Values.service.port }} }
 {{- end }}

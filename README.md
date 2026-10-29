@@ -9,6 +9,7 @@ nhưng gọi các template này để đồng nhất kiểm tra. Quyết định
 | `charts/microservice/` | Chart cho mọi service: Deployment hoặc Argo Rollout (canary), HPA/KEDA, PDB, NetworkPolicy, HTTPRoute, Workload Identity, Key Vault CSI. Bảo mật mặc định mức *restricted* |
 | `.github/workflows/java-ci.yml` | Maven `-pl <modules> -am verify`: Spotless check, build `-Werror`, test (Testcontainers), JaCoCo ≥ ngưỡng |
 | `.github/workflows/python-ci.yml` | (service ai, ml) ruff, mypy, pytest + coverage, pip-audit |
+| `.github/workflows/node-ci.yml` | (web app) prettier, eslint `--max-warnings=0`, tsc, vitest + coverage (ngưỡng trong `vite.config.ts`), build, `npm audit` (dependency production) |
 | `.github/workflows/container.yml` | hadolint → build → Trivy (chặn HIGH/CRITICAL) → SBOM → push ACR (OIDC) → ký cosign |
 | `.github/workflows/helm-validate.yml` | `helm lint --strict`, render, kubeconform (kể cả CRD), Trivy config |
 | `.github/workflows/terraform-checks.yml` | `fmt`, `validate`, tflint, Trivy config (không `apply`) |
@@ -33,3 +34,8 @@ Các bộ giá trị trong `charts/microservice/ci/` được thử ở CI (`hel
 ## Trạng thái
 Đã kiểm bằng `helm lint --strict`, `kubeconform --strict` (kèm CRD Argo Rollouts, KEDA, Gateway API, Secrets Store) và `actionlint` + `shellcheck`.
 **Chưa chạy trên GitHub Actions thật** (cần repo, OIDC, ACR): kiểm ở task ENV-05.
+
+## Chart `microservice`: tùy chọn cho web app
+
+- `httpRoute.pathPrefixes`: nhiều tiền tố trên một HTTPRoute (ghi đè `pathPrefix`). Gateway API dùng `[/fhir, /api]`, web app giữ `/`.
+- `configFiles`: mount file chỉ-đọc từ ConfigMap, ví dụ `config.json` lúc chạy của web app (`ci/web-values.yaml`).
