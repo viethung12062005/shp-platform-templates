@@ -77,6 +77,12 @@ httpRoute:                  # Gateway API
   parentRefs: []            # - { name: shp-gateway, namespace: gateway }
   hostnames: []
   pathPrefix: /
+  # Several prefixes on one route (overrides pathPrefix), e.g. the API gateway: [/fhir, /api]; the web app keeps /.
+  pathPrefixes: []
+
+# Files mounted read-only into the container from a ConfigMap (<name>-files), one subPath mount per file.
+# Example (web app runtime config): - { path: /usr/share/nginx/html/config.json, content: '{"authMode":"oidc"}' }
+configFiles: []
 
 topologySpread:
   enabled: true             # trải đều theo zone (NFR-A3)

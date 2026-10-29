@@ -50,10 +50,13 @@ metadata:
     azure.workload.identity/use: "true"
     {{- end }}
     {{- with .Values.podLabels }}{{ toYaml . | nindent 4 }}{{- end }}
-  {{- if or .Values.config .Values.podAnnotations }}
+  {{- if or .Values.config .Values.configFiles .Values.podAnnotations }}
   annotations:
     {{- if .Values.config }}
     checksum/config: {{ toYaml .Values.config | sha256sum }}
+    {{- end }}
+    {{- if .Values.configFiles }}
+    checksum/config-files: {{ toYaml .Values.configFiles | sha256sum }}
     {{- end }}
     {{- with .Values.podAnnotations }}{{ toYaml . | nindent 4 }}{{- end }}
   {{- end }}
@@ -96,11 +99,18 @@ spec:
         {{- toYaml .Values.containerSecurityContext | nindent 8 }}
       volumeMounts:
         - { name: tmp, mountPath: /tmp }
+        {{- range $i, $f := .Values.configFiles }}
+        - { name: config-files, mountPath: {{ $f.path | quote }}, subPath: {{ printf "file-%d" $i | quote }}, readOnly: true }
+        {{- end }}
         {{- if .Values.keyVault.enabled }}
         - { name: secrets-store, mountPath: {{ .Values.keyVault.mountPath }}, readOnly: true }
         {{- end }}
   volumes:
     - { name: tmp, emptyDir: {} }
+    {{- if .Values.configFiles }}
+    - name: config-files
+      configMap: { name: {{ printf "%s-files" (include "microservice.fullname" .) }} }
+    {{- end }}
     {{- if .Values.keyVault.enabled }}
     - name: secrets-store
       csi:
