@@ -1,0 +1,47 @@
+# Reusable workflow: build/refresh the OWASP Dependency-Check vulnerability database (NVD + CISA KEV + RetireJS) and share
+# it through the Actions cache for pr-checks.yml. Call it on a schedule from the default branch (caches written there are
+# readable by every PR). Incremental after the first build: it restores the last good database and only fetches changes.
+# A database is saved ONLY when the update succeeds, so an NVD outage or a timeout never replaces a good one with a partial one.
+name: dependency-check-db
+on:
+  workflow_call:
+    secrets:
+      NVD_API_KEY:
+        required: true
+        description: "Free NVD API key (https://nvd.nist.gov/developers/request-an-api-key)"
+permissions:
+  contents: read
+env:
+  # OWASP Dependency-Check 13.0.0, pinned by image index digest (same as pr-checks.yml).
+  DEPCHECK_IMAGE: owasp/dependency-check@sha256:0e8f69ad5b00d62000937f4e57189812343f6903d9c83ee712012d51542a020a
+jobs:
+  build-db:
+    runs-on: ubuntu-latest
+    # The first full NVD download takes about an hour (longer when the NVD API is slow); later runs take minutes.
+    timeout-minutes: 300
+    steps:
+      - name: Restore the last good database
+        id: db
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: dc-data
+          key: dependency-check-db-latest
+          restore-keys: dependency-check-db-
+      - name: Update the database
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+          FROM: ${{ steps.db.outputs.cache-matched-key }}
+        run: |
+          echo "Starting from: ${FROM:-empty (full download)}"
+          mkdir -p dc-data && chmod -R 777 dc-data
+          docker run --rm -e NVD_API_KEY \
+            -v "$PWD/dc-data:/usr/share/dependency-check/data" \
+            "$DEPCHECK_IMAGE" \
+            --updateonly --nvdApiKey "$NVD_API_KEY"
+          du -sh dc-data
+      - name: Save the database
+        if: success()
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: dc-data
+          key: dependency-check-db-${{ github.run_id }}

@@ -9,6 +9,7 @@ nhưng gọi các template này để đồng nhất kiểm tra. Quyết định
 | `charts/microservice/` | Chart cho mọi service: Deployment hoặc Argo Rollout (canary), HPA/KEDA, PDB, NetworkPolicy, HTTPRoute, Workload Identity, Key Vault CSI. Bảo mật mặc định mức *restricted* |
 | `.github/workflows/java-ci.yml` | Maven `-pl <modules> -am verify`: Spotless check, build `-Werror`, test (Testcontainers), JaCoCo ≥ ngưỡng |
 | `.github/workflows/python-ci.yml` | (service ai, ml) ruff, mypy, pytest + coverage, pip-audit |
+| `.github/workflows/dependency-check-db.yml` | Dựng/cập nhật CSDL lỗ hổng của OWASP Dependency-Check (NVD, CISA KEV, RetireJS) và lưu vào cache Actions; gọi theo lịch từ nhánh mặc định. `pr-checks` dùng bản dựng sẵn với `--noupdate` |
 | `.github/workflows/node-ci.yml` | (web app) prettier, eslint `--max-warnings=0`, tsc, vitest + coverage (ngưỡng trong `vite.config.ts`), build, `npm audit` (dependency production) |
 | `.github/workflows/container.yml` | hadolint → build → Trivy (chặn HIGH/CRITICAL) → SBOM → push ACR (OIDC) → ký cosign |
 | `.github/workflows/helm-validate.yml` | `helm lint --strict`, render, kubeconform (kể cả CRD), Trivy config |

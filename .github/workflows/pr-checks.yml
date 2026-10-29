@@ -5,7 +5,7 @@ on:
     secrets:
       NVD_API_KEY:
         required: false
-        description: "Free NVD API key; without it the OWASP Dependency-Check job is skipped"
+        description: "Not used by PR checks any more (the database is prebuilt by dependency-check-db.yml); kept so existing callers keep working"
 permissions:
   contents: read
 env:
@@ -77,60 +77,44 @@ jobs:
           ./osv-scanner scan source --recursive --format table . | tee osv.txt || true
           { echo '### OSV-Scanner'; echo '```'; head -200 osv.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
   dependency-check:
-    # OWASP Dependency-Check needs a free NVD API key (https://nvd.nist.gov/developers/request-an-api-key) stored as the
-    # NVD_API_KEY secret and passed to this workflow (secrets: inherit). Without the key the job is skipped, not failed.
+    # OWASP Dependency-Check against a PREBUILT vulnerability database. Downloading the NVD data live (~416k records via the
+    # NVD API) takes more than 45 minutes and fails whenever the NVD API is down, so PRs never do it: the database is built
+    # by the nightly dependency-check-db.yml workflow and shared through the Actions cache (caches made on the default
+    # branch are readable by every PR). No database yet -> the job is skipped with a notice; Trivy fs and OSV-Scanner still gate the PR.
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     permissions:
       contents: read
-    env:
-      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
     steps:
-      - name: Check for NVD API key
-        id: key
-        run: |
-          if [ -n "$NVD_API_KEY" ]; then echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else echo "::notice::NVD_API_KEY not provided: skipping OWASP Dependency-Check"; fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        if: steps.key.outputs.enabled == 'true'
         with: { persist-credentials: false }
-      - name: Restore NVD data cache
-        if: steps.key.outputs.enabled == 'true'
+      - name: Restore the prebuilt vulnerability database
+        id: db
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: dc-data
-          key: dependency-check-nvd-${{ github.run_id }}
-          restore-keys: dependency-check-nvd-
-      - name: OWASP Dependency-Check (fail on CVSS >= 7)
-        if: steps.key.outputs.enabled == 'true'
+          key: dependency-check-db-latest
+          restore-keys: dependency-check-db-
+      - name: Skip when the database has not been built yet
+        if: steps.db.outputs.cache-matched-key == ''
         run: |
+          echo "::notice::No prebuilt Dependency-Check database yet. Run the dependency-check-db workflow once (Actions tab). Skipped."
+      - name: OWASP Dependency-Check, no update (fail on CVSS >= 7)
+        if: steps.db.outputs.cache-matched-key != ''
+        env:
+          DB_KEY: ${{ steps.db.outputs.cache-matched-key }}
+        run: |
+          echo "Using database $DB_KEY"
           # The container runs as a non-root user: give it write access to the mounted data and report directories.
-          mkdir -p dc-report dc-data
+          mkdir -p dc-report
           chmod -R 777 dc-report dc-data
-          set +e
-          docker run --rm -e NVD_API_KEY \
+          docker run --rm \
             -v "$PWD:/src:ro" -v "$PWD/dc-report:/report" -v "$PWD/dc-data:/usr/share/dependency-check/data" \
             "$DEPCHECK_IMAGE" \
             --scan /src --format HTML --format JSON --out /report \
-            --failOnCVSS 7 --nvdApiKey "$NVD_API_KEY" --disableAssembly
-          rc=$?
-          set -e
-          # Exit code 14 = the NVD data update failed (the NVD API is an external service and often returns 5xx).
-          # That is an outage, not a finding: warn instead of failing the PR. Trivy fs and OSV-Scanner still ran.
-          if [ "$rc" -eq 14 ]; then
-            echo "::warning::NVD API unavailable: OWASP Dependency-Check could not refresh its data and was skipped for this run."
-            exit 0
-          fi
-          exit "$rc"
-      - name: Save NVD data cache
-        # Save even when the scan fails on a real finding, so the next run does not re-download the NVD data.
-        if: always() && steps.key.outputs.enabled == 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: dc-data
-          key: dependency-check-nvd-${{ github.run_id }}
+            --noupdate --failOnCVSS 7 --disableAssembly
       - name: Upload Dependency-Check report
-        if: always() && steps.key.outputs.enabled == 'true'
+        if: always() && steps.db.outputs.cache-matched-key != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dependency-check-report
