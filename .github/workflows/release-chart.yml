@@ -1,4 +1,5 @@
-# Publish the chart to ACR (OCI) when a chart-vX.Y.Z tag is pushed. Signs in to Azure with OIDC.
+# Publish the chart to ACR (OCI) when a chart-vX.Y.Z tag is pushed. Signs in to Azure with OIDC (identity chart-push;
+# the Environment release-chart only accepts chart-v* tags, set in the repo settings).
 name: release-chart
 on:
   push:
@@ -25,7 +26,7 @@ jobs:
         with: { version: v3.19.0 }
       - uses: azure/login@2035af27c2cea8ff426397d10e3edb28906b51df # v2.3.1
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID_ACR_PUSH }}
+          client-id: ${{ vars.AZURE_CLIENT_ID_CHART_PUSH }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - name: Package and push the chart
