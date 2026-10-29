@@ -36,6 +36,9 @@ jobs:
           done
       - name: tflint
         working-directory: ${{ inputs.working-directory }}
+        env:
+          # tflint --init downloads plugins from GitHub releases; unauthenticated calls share the runner IP's rate limit.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           tflint --init
           tflint --recursive
