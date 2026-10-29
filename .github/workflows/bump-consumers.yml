@@ -1,0 +1,70 @@
+# When a release tag vX.Y.Z is pushed, open a PR in every repo that pins these workflows, changing the pin to the new tag.
+# The PR runs the consumer's normal CI, which is the check that the new template release works. Nothing is merged here.
+# Needs a GitHub App installed on the consumer repos (Contents, Pull requests, Workflows: write). Without the
+# variable TEMPLATE_BUMP_APP_ID this workflow does nothing, so the repo stays usable before the App exists.
+name: bump-consumers
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to roll out (vX.Y.Z)"
+        required: true
+permissions: {}
+jobs:
+  bump:
+    if: vars.TEMPLATE_BUMP_APP_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: [smart-hospital-platform, shp-gitops, shp-infra]
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
+        with:
+          app-id: ${{ vars.TEMPLATE_BUMP_APP_ID }}
+          private-key: ${{ secrets.TEMPLATE_BUMP_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ matrix.repo }}
+      - name: Open the bump PR
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ matrix.repo }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::not a release tag: $TAG"; exit 1; }
+          gh repo clone "$OWNER/$REPO" work -- --depth 1
+          cd work
+          git config user.name "shp-template-bump[bot]"
+          git config user.email "shp-template-bump@users.noreply.github.com"
+          branch="DEV-bump-templates-$TAG"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "Branch $branch already exists in $REPO; nothing to do."
+            exit 0
+          fi
+          git checkout -b "$branch"
+
+          # Workflow pins: .../shp-platform-templates/.github/workflows/<file>@vX.Y.Z
+          mapfile -t files < <(grep -rlE "shp-platform-templates/\.github/workflows/[A-Za-z0-9_.-]+@v[0-9]+\.[0-9]+\.[0-9]+" .github || true)
+          for f in "${files[@]}"; do
+            sed -i -E "s#(shp-platform-templates/\.github/workflows/[A-Za-z0-9_.-]+@)v[0-9]+\.[0-9]+\.[0-9]+#\1$TAG#g" "$f"
+          done
+          # Local dev default (deploy.sh clones the chart at this ref)
+          if [ -f dev/scripts/lib.sh ]; then
+            sed -i -E "s#(SHP_TEMPLATES_REF:-)v[0-9]+\.[0-9]+\.[0-9]+#\1$TAG#" dev/scripts/lib.sh
+          fi
+
+          if git diff --quiet; then
+            echo "$REPO already pins $TAG (or has no pins); nothing to do."
+            exit 0
+          fi
+          git commit -q -am "Bump platform templates pin to $TAG"
+          git push -q origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "Bump platform templates pin to $TAG" \
+            --body "Rolls out the shp-platform-templates release [$TAG](https://github.com/$OWNER/shp-platform-templates/releases/tag/$TAG). The CI on this PR is the check that the new release works in this repo. Review the template changes before merging."

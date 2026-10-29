@@ -21,6 +21,14 @@ nhưng gọi các template này để đồng nhất kiểm tra. Quyết định
 
 ## Cách dùng
 Service gọi bằng `uses: viethung12062005/shp-platform-templates/.github/workflows/<file>@<tag>` (xem `examples/`). **Luôn ghim theo tag/SHA**, không dùng `@main`, để thay đổi template không làm vỡ mọi service cùng lúc.
+
+### Phát hành và nâng phiên bản
+
+1. Sửa template bằng PR vào `main` như bình thường. Các repo dùng template chưa bị ảnh hưởng.
+2. Tạo tag phát hành: `git checkout main && git pull && git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. Workflow `bump-consumers.yml` tự mở PR "Bump platform templates pin to vX.Y.Z" ở `smart-hospital-platform`, `shp-gitops` và `shp-infra`. CI của PR đó là phép thử bản mới; người review quyết định merge. Chạy lại cho một tag đã có bằng `workflow_dispatch`.
+
+Workflow này chỉ chạy khi đã có GitHub App: biến `TEMPLATE_BUMP_APP_ID` và secret `TEMPLATE_BUMP_APP_PRIVATE_KEY` đặt ở repo này. App cần quyền ghi `Contents`, `Pull requests` và `Workflows` trên 3 repo trên (quyền `Workflows` là bắt buộc vì PR sửa file trong `.github/workflows`). Khi chưa có biến, workflow bị bỏ qua.
 Bật *Settings → Actions → Access → Accessible from repositories owned by the user* nếu repo này private.
 
 ## Nguyên tắc bảo mật
