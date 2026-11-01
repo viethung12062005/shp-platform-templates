@@ -18,6 +18,13 @@ spec:
         templates:
           - templateName: {{ include "microservice.fullname" . }}
         startingStep: 1
+        {{- if .Values.rollout.analysis.compareCanaryStable }}
+        args:
+          - name: canary-hash
+            valueFrom: { podTemplateHashValue: Latest }
+          - name: stable-hash
+            valueFrom: { podTemplateHashValue: Stable }
+        {{- end }}
       {{- end }}
   template:
     {{- include "microservice.podTemplate" . | nindent 4 }}

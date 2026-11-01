@@ -119,3 +119,6 @@ rollout:
     interval: 30s
     count: 3
     metrics: []             # - { name: error-rate, query: "...", successCondition: "result[0] < 0.01" }
+    # true: Rollout truyền hai biến {{args.canary-hash}}/{{args.stable-hash}} (Argo Rollouts podTemplateHashValue)
+    # cho mọi query, để so sánh pod mới với pod cũ (ví dụ tỉ lệ lỗi canary so với stable) thay vì chỉ đọc số tuyệt đối.
+    compareCanaryStable: false

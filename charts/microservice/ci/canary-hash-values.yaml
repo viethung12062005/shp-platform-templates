@@ -1,0 +1,10 @@
+image:
+  repository: example.azurecr.io/demo
+  digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+rollout:
+  enabled: true
+  analysis:
+    enabled: true
+    compareCanaryStable: true
+    metrics:
+      - { name: error-rate-vs-stable, query: "sum(rate(http_requests_total{status=~\"5..\", pod_template_hash=\"{{args.canary-hash}}\"}[5m])) - sum(rate(http_requests_total{status=~\"5..\", pod_template_hash=\"{{args.stable-hash}}\"}[5m]))", successCondition: "result[0] <= 0.005" }
