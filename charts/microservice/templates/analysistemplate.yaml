@@ -5,6 +5,11 @@ metadata:
   name: {{ include "microservice.fullname" . }}
   labels: {{- include "microservice.labels" . | nindent 4 }}
 spec:
+  {{- if .Values.rollout.analysis.compareCanaryStable }}
+  args:
+    - name: canary-hash
+    - name: stable-hash
+  {{- end }}
   metrics:
     {{- range (required "rollout.analysis.metrics không được rỗng" .Values.rollout.analysis.metrics) }}
     - name: {{ .name }}
