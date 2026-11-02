@@ -1,0 +1,43 @@
+# Reusable workflow: the PR title must follow docs/00-git-github.md section 2.1 of the application repo:
+#   <story> (<task>[, <task>...]): <description>      e.g.  US-064 (ML-06): add appointment-booked consumer
+#   ENABLER (ARC-04): add detailed architecture diagrams
+# The title becomes the commit on main when the PR is squash-merged, so this is what keeps main consistent.
+# Callers should run it on pull_request with types [opened, edited, synchronize, reopened] so fixing the title re-runs it.
+name: pr-title
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check the PR title format
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+          # PRs opened by tools (Dependabot, release and promote bots) keep the format their tool produces.
+          if [[ "$AUTHOR" == *"[bot]" ]]; then
+            echo "PR opened by a bot ($AUTHOR), title not checked: $TITLE"
+            exit 0
+          fi
+          re='^(?=.{1,100}$)(ENABLER|US-\d{3}(\.\.US-\d{3})?(, US-\d{3}(\.\.US-\d{3})?)*) \([A-Z]{2,4}-\d{2,3}(\.\.[A-Z]{2,4}-\d{2,3})?(, [A-Z]{2,4}-\d{2,3}(\.\.[A-Z]{2,4}-\d{2,3})?)*\): \S.*$'
+          if printf '%s\n' "$TITLE" | grep -Pq "$re"; then
+            echo "OK: $TITLE"
+            exit 0
+          fi
+          echo "::error title=PR title does not follow the convention::$TITLE"
+          {
+            echo "### PR title does not follow the convention"
+            echo
+            echo "Title: \`$TITLE\` (${#TITLE} characters, at most 100)"
+            echo
+            echo "Expected: \`<story> (<task>[, <task>...]): <description>\`, for example"
+            echo "\`US-064 (ML-06): add appointment-booked consumer\` or \`ENABLER (ARC-04): add architecture diagrams\`."
+            echo "Story is \`US-xxx\` (ranges as \`US-053..US-056\`) or \`ENABLER\`; the description is lowercase English starting with a verb."
+            echo "Rules and examples: docs/00-git-github.md section 2.1 in smart-hospital-platform."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1

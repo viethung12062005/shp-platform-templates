@@ -15,6 +15,7 @@ nhưng gọi các template này để đồng nhất kiểm tra. Quyết định
 | `.github/workflows/helm-validate.yml` | `helm lint --strict`, render, kubeconform (kể cả CRD), Trivy config |
 | `.github/workflows/terraform-checks.yml` | `fmt`, `validate`, tflint, Trivy config (không `apply`) |
 | `.github/workflows/pr-checks.yml` | gitleaks, actionlint, dependency review |
+| `.github/workflows/pr-title.yml` | Tiêu đề PR phải theo `<story> (<task>): <mô tả>` hoặc `ENABLER (<task>): <mô tả>` (docs/00-git-github.md §2.1 của repo ứng dụng); PR do bot mở được miễn. Caller chạy trên `pull_request` với `types: [opened, edited, synchronize, reopened]` |
 | `.github/workflows/gitops-promote.yml` | Cập nhật digest image trong repo GitOps (commit cho UAT, PR cho prod). Deploy thật do Argo CD |
 | `.github/workflows/release-chart.yml` | Tag `chart-vX.Y.Z` → đẩy chart lên ACR (OCI) |
 | `examples/svc-scheduling.yml` | Mẫu workflow riêng của một service |
