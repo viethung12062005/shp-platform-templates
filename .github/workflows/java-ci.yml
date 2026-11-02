@@ -23,8 +23,6 @@ jobs:
           distribution: temurin
           java-version: ${{ inputs.java-version }}
           cache: maven
-      - name: Work around MongoDB/V8 crash on newer kernel ASLR entropy (ubuntu-latest kernel 6.19+, ~MongoDB SERVER-121912)
-        run: sudo sysctl -w vm.mmap_rnd_bits=28
       - name: Validate inputs
         env:
           MODULES: ${{ inputs.modules }}
