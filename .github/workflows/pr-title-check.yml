@@ -1,0 +1,11 @@
+# PR titles of this repo follow the same story/task convention as the application repo (docs/00-git-github.md there).
+# Uses the local reusable workflow, so it always tests the version on the branch. Re-runs when the title is edited.
+name: pr-title-check
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+permissions:
+  contents: read
+jobs:
+  title:
+    uses: ./.github/workflows/pr-title.yml
