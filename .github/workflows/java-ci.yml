@@ -23,6 +23,8 @@ jobs:
           distribution: temurin
           java-version: ${{ inputs.java-version }}
           cache: maven
+      - name: Work around MongoDB/V8 crash on newer kernel ASLR entropy (ubuntu-latest kernel 6.19+, ~MongoDB SERVER-121912)
+        run: sudo sysctl -w vm.mmap_rnd_bits=28
       - name: Validate inputs
         env:
           MODULES: ${{ inputs.modules }}
@@ -31,10 +33,6 @@ jobs:
       - name: Maven verify (format, build -Werror, test, coverage)
         env:
           MODULES: ${{ inputs.modules }}
-          # TEMPORARY, CI only: MongoDB 8.0+ refuses to start on Linux kernels 6.19 to 7.0.13 (SERVER-121912), and some
-          # GitHub runners ship such a kernel, so Testcontainers fails at random. Design, dev chart and local tests stay
-          # on mongo:8. Remove this once runner kernels are >= 7.0.14.
-          SHP_TEST_MONGO_IMAGE: mongo:7.0
         run: mvn -B --no-transfer-progress -pl "$MODULES" -am verify
       - name: Upload test reports on failure
         if: failure()
