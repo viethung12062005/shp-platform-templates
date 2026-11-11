@@ -1,51 +1,50 @@
 # shp-platform-templates
 
-Template dùng chung cho Smart Hospital Platform: **chart Helm `microservice`** và **reusable workflow** của GitHub Actions. Mỗi service có pipeline riêng
-nhưng gọi các template này để đồng nhất kiểm tra. Quyết định: ADR-0009, ADR-0010, ADR-0011 trong repo ứng dụng.
+Shared templates for the Smart Hospital Platform: the **`microservice` Helm chart** and the **reusable GitHub Actions workflows**. Each service keeps its own
+pipeline but calls these templates so the checks are the same everywhere. Decisions: ADR-0009, ADR-0010, ADR-0011 in the application repo.
 
-## Nội dung
-| Đường dẫn | Mục đích |
+## Contents
+| Path | Purpose |
 |---|---|
-| `charts/microservice/` | Chart cho mọi service: Deployment hoặc Argo Rollout (canary), HPA/KEDA, PDB, NetworkPolicy, HTTPRoute, Workload Identity, Key Vault CSI. Bảo mật mặc định mức *restricted* |
-| `.github/workflows/java-ci.yml` | Maven `-pl <modules> -am verify`: Spotless check, build `-Werror`, test (Testcontainers), JaCoCo ≥ ngưỡng |
-| `.github/workflows/python-ci.yml` | (service ai, ml) ruff, mypy, pytest + coverage, pip-audit |
-| `.github/workflows/dependency-check-db.yml` | Dựng/cập nhật CSDL lỗ hổng của OWASP Dependency-Check (NVD, CISA KEV, RetireJS) và lưu vào cache Actions; gọi theo lịch từ nhánh mặc định. `pr-checks` dùng bản dựng sẵn với `--noupdate` |
-| `.github/workflows/node-ci.yml` | (web app) prettier, eslint `--max-warnings=0`, tsc, vitest + coverage (ngưỡng trong `vite.config.ts`), build, `npm audit` (dependency production) |
-| `.github/workflows/container.yml` | hadolint → build → Trivy (chặn HIGH/CRITICAL) → SBOM → push ACR (OIDC) → ký cosign |
-| `.github/workflows/helm-validate.yml` | `helm lint --strict`, render, kubeconform (kể cả CRD), Trivy config |
-| `.github/workflows/terraform-checks.yml` | `fmt`, `validate`, tflint, Trivy config (không `apply`) |
+| `charts/microservice/` | Chart for every service: Deployment or Argo Rollout (canary), HPA/KEDA, PDB, NetworkPolicy, HTTPRoute, Workload Identity, Key Vault CSI. Security defaults at *restricted* |
+| `.github/workflows/java-ci.yml` | Maven `-pl <modules> -am verify`: Spotless check, build with `-Werror`, tests (Testcontainers), JaCoCo >= threshold |
+| `.github/workflows/python-ci.yml` | (ai, ml services) ruff, mypy, pytest + coverage, pip-audit |
+| `.github/workflows/dependency-check-db.yml` | Builds/refreshes the OWASP Dependency-Check vulnerability database (NVD, CISA KEV, RetireJS) and saves it to the Actions cache; triggered on a schedule from the default branch. `pr-checks` uses the prebuilt copy with `--noupdate` |
+| `.github/workflows/node-ci.yml` | (web app) prettier, eslint `--max-warnings=0`, tsc, vitest + coverage (thresholds in `vite.config.ts`), build, `npm audit` (production dependencies) |
+| `.github/workflows/container.yml` | hadolint -> build -> Trivy (blocks HIGH/CRITICAL) -> SBOM -> push to ACR (OIDC) -> cosign sign |
+| `.github/workflows/helm-validate.yml` | `helm lint --strict`, render, kubeconform (CRDs included), Trivy config |
+| `.github/workflows/terraform-checks.yml` | `fmt`, `validate`, tflint, Trivy config (never `apply`) |
 | `.github/workflows/pr-checks.yml` | gitleaks, actionlint, dependency review |
-| `.github/workflows/pr-title.yml` | Tiêu đề PR phải theo `<story> (<task>): <mô tả>` hoặc `ENABLER (<task>): <mô tả>` (docs/00-git-github.md §2.1 của repo ứng dụng); PR do bot mở được miễn. Caller chạy trên `pull_request` với `types: [opened, edited, synchronize, reopened]` |
-| `.github/workflows/gitops-promote.yml` | Cập nhật digest image trong repo GitOps (commit cho UAT, PR cho prod). Deploy thật do Argo CD |
-| `.github/workflows/release-chart.yml` | Tag `chart-vX.Y.Z` → đẩy chart lên ACR (OCI) |
-| `examples/svc-scheduling.yml` | Mẫu workflow riêng của một service |
+| `.github/workflows/pr-title.yml` | The PR title must follow `<story> (<task>): <description>` or `ENABLER (<task>): <description>` (docs/00-git-github.md §2.1 of the application repo); PRs opened by a bot are exempt. The caller runs on `pull_request` with `types: [opened, edited, synchronize, reopened]` |
+| `.github/workflows/gitops-promote.yml` | Updates the image digest in the GitOps repo (commit for UAT, PR for prod). The actual deploy is done by Argo CD |
+| `.github/workflows/release-chart.yml` | Tag `chart-vX.Y.Z` -> push the chart to ACR (OCI) |
+| `examples/svc-scheduling.yml` | Example of a service's own workflow |
 
-## Cách dùng
-Service gọi bằng `uses: viethung12062005/shp-platform-templates/.github/workflows/<file>@<tag>` (xem `examples/`). **Luôn ghim theo tag/SHA**, không dùng `@main`, để thay đổi template không làm vỡ mọi service cùng lúc.
+## How to use
+A service calls a template with `uses: viethung12062005/shp-platform-templates/.github/workflows/<file>@<tag>` (see `examples/`). **Always pin by tag or SHA**, never `@main`, so a template change does not break every service at once.
 
-### Phát hành và nâng phiên bản
+### Releasing and upgrading
+1. Change the template through a PR into `main` as usual. Repos that use the template are not affected yet.
+2. Create the release tag: `git checkout main && git pull && git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The `bump-consumers.yml` workflow opens the "Bump platform templates pin to vX.Y.Z" PR in `smart-hospital-platform`, `shp-gitops` and `shp-infra`. The CI of that PR is the trial run for the new version; the reviewer decides when to merge. Re-run it for an existing tag with `workflow_dispatch`.
 
-1. Sửa template bằng PR vào `main` như bình thường. Các repo dùng template chưa bị ảnh hưởng.
-2. Tạo tag phát hành: `git checkout main && git pull && git tag vX.Y.Z && git push origin vX.Y.Z`.
-3. Workflow `bump-consumers.yml` tự mở PR "Bump platform templates pin to vX.Y.Z" ở `smart-hospital-platform`, `shp-gitops` và `shp-infra`. CI của PR đó là phép thử bản mới; người review quyết định merge. Chạy lại cho một tag đã có bằng `workflow_dispatch`.
+This workflow only runs when a GitHub App is configured: the `TEMPLATE_BUMP_APP_ID` variable and the `TEMPLATE_BUMP_APP_PRIVATE_KEY` secret live in this repo. The App needs write access to `Contents`, `Pull requests` and `Workflows` on the three repos above (the `Workflows` permission is required because the PR changes files under `.github/workflows`). While the variable is missing, the workflow is skipped.
+Turn on *Settings → Actions → Access → Accessible from repositories owned by the user* if this repo is private.
 
-Workflow này chỉ chạy khi đã có GitHub App: biến `TEMPLATE_BUMP_APP_ID` và secret `TEMPLATE_BUMP_APP_PRIVATE_KEY` đặt ở repo này. App cần quyền ghi `Contents`, `Pull requests` và `Workflows` trên 3 repo trên (quyền `Workflows` là bắt buộc vì PR sửa file trong `.github/workflows`). Khi chưa có biến, workflow bị bỏ qua.
-Bật *Settings → Actions → Access → Accessible from repositories owned by the user* nếu repo này private.
+## Security principles
+- Every third-party action is **pinned by commit SHA** (with the version noted next to it); Dependabot proposes upgrades. Downloaded tools (kubeconform, actionlint) are **checksum**-verified; Trivy runs from an image **pinned by digest**.
+- No secrets in the repo. Azure sign-in uses an **OIDC federated credential**; the GitHub App bot can only write to the GitOps repo.
+- Workflows declare minimal `permissions`; `id-token: write` only on the job that needs it.
+- cosign signatures are *keyless* (public Sigstore): the signature metadata, including the repo name, is written to a public transparency log even when the repo is private. The cluster verifies signatures with Kyverno (GOP-07).
 
-## Nguyên tắc bảo mật
-- Mọi action bên thứ ba được **ghim theo commit SHA** (ghi chú phiên bản bên cạnh); Dependabot đề xuất nâng cấp. Công cụ tải về (kubeconform, actionlint) kiểm **checksum**; Trivy chạy bằng image **ghim theo digest**.
-- Không có secret trong repo. Đăng nhập Azure bằng **OIDC federated credential**; GitHub App bot chỉ có quyền ghi vào repo GitOps.
-- Workflow khai báo `permissions` tối thiểu; `id-token: write` chỉ ở job cần.
-- Chữ ký cosign dùng chế độ *keyless* (Sigstore công khai): metadata chữ ký, gồm tên repo, được ghi vào nhật ký minh bạch công khai kể cả khi repo private. Cluster xác minh chữ ký bằng Kyverno (GOP-07).
+## Testing the chart
+The value sets under `charts/microservice/ci/` are exercised in CI (`helm-validate`). When you add a chart feature, add a matching value set.
 
-## Kiểm thử chart
-Các bộ giá trị trong `charts/microservice/ci/` được thử ở CI (`helm-validate`). Thêm tính năng cho chart thì thêm một bộ giá trị tương ứng.
+## Status
+Checked with `helm lint --strict`, `kubeconform --strict` (with the Argo Rollouts, KEDA, Gateway API and Secrets Store CRDs) and `actionlint` + `shellcheck`.
+**Not yet run on real GitHub Actions** (needs the repo, OIDC and ACR): that check is ENV-05.
 
-## Trạng thái
-Đã kiểm bằng `helm lint --strict`, `kubeconform --strict` (kèm CRD Argo Rollouts, KEDA, Gateway API, Secrets Store) và `actionlint` + `shellcheck`.
-**Chưa chạy trên GitHub Actions thật** (cần repo, OIDC, ACR): kiểm ở task ENV-05.
+## `microservice` chart: options for the web app
 
-## Chart `microservice`: tùy chọn cho web app
-
-- `httpRoute.pathPrefixes`: nhiều tiền tố trên một HTTPRoute (ghi đè `pathPrefix`). Gateway API dùng `[/fhir, /api]`, web app giữ `/`.
-- `configFiles`: mount file chỉ-đọc từ ConfigMap, ví dụ `config.json` lúc chạy của web app (`ci/web-values.yaml`).
+- `httpRoute.pathPrefixes`: several prefixes on one HTTPRoute (overrides `pathPrefix`). The Gateway API uses `[/fhir, /api]`, the web app keeps `/`.
+- `configFiles`: mount a read-only file from a ConfigMap, for example the web app's runtime `config.json` (`ci/web-values.yaml`).

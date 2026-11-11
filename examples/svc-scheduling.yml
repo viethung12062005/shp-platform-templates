@@ -1,5 +1,5 @@
-# VÍ DỤ workflow riêng của một service (đặt ở repo ứng dụng: .github/workflows/svc-scheduling.yml).
-# Mỗi service một file như thế này; chỉ chạy khi thư mục của service thay đổi. Đã trỏ về viethung12062005; đổi phiên bản khi phát hành tag mới.
+# EXAMPLE of a service's own workflow (lives in the application repo: .github/workflows/svc-scheduling.yml).
+# One file like this per service; it only runs when that service's directory changes. Already points at viethung12062005; bump the version when a new tag is released.
 name: svc-scheduling
 on:
   pull_request:
@@ -43,4 +43,4 @@ jobs:
       mode: commit
     secrets:
       gitops-app-private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
-  # Lên prod: workflow riêng, chỉ chạy khi demo (environment: deploy-prod, mode: pr).
+  # To prod: a separate workflow, run only for the demo (environment: deploy-prod, mode: pr).
