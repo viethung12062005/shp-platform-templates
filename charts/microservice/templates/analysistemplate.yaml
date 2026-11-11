@@ -11,7 +11,7 @@ spec:
     - name: stable-hash
   {{- end }}
   metrics:
-    {{- range (required "rollout.analysis.metrics không được rỗng" .Values.rollout.analysis.metrics) }}
+    {{- range (required "rollout.analysis.metrics must not be empty" .Values.rollout.analysis.metrics) }}
     - name: {{ .name }}
       interval: {{ $.Values.rollout.analysis.interval }}
       count: {{ $.Values.rollout.analysis.count }}
