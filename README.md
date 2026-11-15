@@ -39,6 +39,7 @@ Turn on *Settings → Actions → Access → Accessible from repositories owned 
 
 ## Testing the chart
 The value sets under `charts/microservice/ci/` are exercised in CI (`helm-validate`). When you add a chart feature, add a matching value set.
+The unit tests under `charts/microservice/tests/` run with [`helm-unittest`](https://github.com/helm-unittest/helm-unittest); run them with `helm unittest charts/microservice --strict`.
 
 ## Status
 Checked with `helm lint --strict`, `kubeconform --strict` (with the Argo Rollouts, KEDA, Gateway API and Secrets Store CRDs) and `actionlint` + `shellcheck`.

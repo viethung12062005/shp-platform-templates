@@ -1,0 +1,64 @@
+suite: network policy
+templates:
+  - networkpolicy.yaml
+release:
+  name: demo
+  namespace: default
+set:
+  image.repository: example.azurecr.io/demo
+  image.tag: local
+tests:
+  - it: allows ingress only from the configured sources
+    set:
+      networkPolicy.ingressFrom:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: gateway } }
+        - podSelector: { matchLabels: { app.kubernetes.io/name: gateway } }
+    asserts:
+      - equal:
+          path: spec.ingress
+          value:
+            - from:
+                - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: gateway } }
+              ports:
+                - { port: 8080, protocol: TCP }
+            - from:
+                - podSelector: { matchLabels: { app.kubernetes.io/name: gateway } }
+              ports:
+                - { port: 8080, protocol: TCP }
+
+  - it: uses the container port in the allowed ingress ports
+    set:
+      containerPort: 9090
+      networkPolicy.ingressFrom:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: gateway } }
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports
+          value:
+            - { port: 9090, protocol: TCP }
+
+  - it: adds egress rules and the Egress policy type when configured
+    set:
+      networkPolicy.egress:
+        - to:
+            - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }
+          ports:
+            - { port: 53, protocol: UDP }
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value: [Ingress, Egress]
+      - equal:
+          path: spec.egress
+          value:
+            - to:
+                - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }
+              ports:
+                - { port: 53, protocol: UDP }
+
+  - it: renders no NetworkPolicy when disabled
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -1,0 +1,39 @@
+suite: image reference
+templates:
+  - workload.yaml
+release:
+  name: demo
+  namespace: default
+set:
+  image.repository: example.azurecr.io/demo
+tests:
+  - it: uses the digest and ignores the tag when both are set
+    set:
+      image.tag: ignored
+      image.digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: example.azurecr.io/demo@sha256:1111111111111111111111111111111111111111111111111111111111111111
+
+  - it: uses the tag when no digest is set
+    set:
+      image.tag: 1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: example.azurecr.io/demo:1.2.3
+
+  - it: applies the configured pull policy
+    set:
+      image.tag: 1.2.3
+      image.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  - it: fails when neither the digest nor the tag is set
+    asserts:
+      - failedTemplate:
+          errorMessage: image.digest or image.tag is required

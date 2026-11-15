@@ -10,6 +10,8 @@ permissions:
 env:
   KUBECONFORM_URL: https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz
   KUBECONFORM_SHA256: c31518ddd122663b3f3aa874cfe8178cb0988de944f29c74a0b9260920d115d3
+  HELM_UNITTEST_URL: https://github.com/helm-unittest/helm-unittest/releases/download/v1.2.1/helm-unittest-linux-amd64-1.2.1.tgz
+  HELM_UNITTEST_SHA256: 48e86ecc1467b009630e5954375e5d8494139f73b466df5fe8c04fa45b634939
   TRIVY_IMAGE: ghcr.io/aquasecurity/trivy@sha256:ab70a02200597efa04748f210f793936eb647cbcdb0ea69cc30b226d6f5a22c7
 jobs:
   validate:
@@ -47,6 +49,18 @@ jobs:
               "rendered/$name.yaml"
             echo "::endgroup::"
           done
+      - name: Install helm-unittest (checksum verified)
+        run: |
+          curl -sSLo helm-unittest.tgz "$HELM_UNITTEST_URL"
+          echo "$HELM_UNITTEST_SHA256  helm-unittest.tgz" | sha256sum -c -
+          plugins_dir="$(helm env HELM_PLUGINS)"
+          mkdir -p "$plugins_dir/unittest"
+          tar xzf helm-unittest.tgz -C "$plugins_dir/unittest"
+          helm plugin list
+      - name: Run chart unit tests
+        env:
+          CHART: ${{ inputs.chart-path }}
+        run: helm unittest "$CHART" --strict
       - name: Scan manifest security configuration (Trivy config)
         run: |
           docker run --rm -v "$PWD/rendered:/rendered:ro" "$TRIVY_IMAGE" config \

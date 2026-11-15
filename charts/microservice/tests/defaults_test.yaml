@@ -1,0 +1,180 @@
+suite: default values
+templates:
+  - workload.yaml
+  - service.yaml
+  - serviceaccount.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+release:
+  name: demo
+  namespace: default
+set:
+  image.repository: example.azurecr.io/demo
+  image.tag: local
+tests:
+  - it: renders a Deployment with the default replicas and rollout strategy
+    template: workload.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - isAPIVersion:
+          of: apps/v1
+      - equal:
+          path: metadata.name
+          value: demo-microservice
+      - equal:
+          path: spec.replicas
+          value: 2
+      - equal:
+          path: spec.revisionHistoryLimit
+          value: 3
+      - equal:
+          path: spec.strategy
+          value:
+            type: RollingUpdate
+            rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: microservice
+            app.kubernetes.io/instance: demo
+
+  - it: renders the pod template with the restricted security defaults
+    template: workload.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile: { type: RuntimeDefault }
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: app
+      - equal:
+          path: spec.template.spec.containers[0].ports
+          value:
+            - { name: http, containerPort: 8080 }
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - { name: SERVER_PORT, value: "8080" }
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts
+          value:
+            - { name: tmp, mountPath: /tmp }
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - { name: tmp, emptyDir: {} }
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: demo-microservice
+
+  - it: renders the Service targeting the http port
+    template: service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports
+          value:
+            - { name: http, port: 80, targetPort: http }
+      - equal:
+          path: spec.selector
+          value:
+            app.kubernetes.io/name: microservice
+            app.kubernetes.io/instance: demo
+
+  - it: creates a ServiceAccount without annotations
+    template: serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: demo-microservice
+      - notExists:
+          path: metadata.annotations
+
+  - it: creates a default-deny ingress NetworkPolicy
+    template: networkpolicy.yaml
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.policyTypes
+          value: [Ingress]
+      - equal:
+          path: spec.ingress
+          value: null
+      - notExists:
+          path: spec.egress
+      - equal:
+          path: spec.podSelector.matchLabels
+          value:
+            app.kubernetes.io/name: microservice
+            app.kubernetes.io/instance: demo
+
+  - it: creates a PodDisruptionBudget for more than one replica
+    template: pdb.yaml
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - isAPIVersion:
+          of: policy/v1
+      - equal:
+          path: spec.minAvailable
+          value: 1
+
+  - it: omits the PodDisruptionBudget for a single replica
+    template: pdb.yaml
+    set:
+      replicaCount: 1
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: omits the PodDisruptionBudget when disabled
+    template: pdb.yaml
+    set:
+      pdb.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: spreads pods across zones when there is more than one replica
+    template: workload.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints
+          value:
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: microservice
+                  app.kubernetes.io/instance: demo
+
+  - it: omits topology spread for a single replica
+    template: workload.yaml
+    set:
+      replicaCount: 1
+    asserts:
+      - notExists:
+          path: spec.template.spec.topologySpreadConstraints

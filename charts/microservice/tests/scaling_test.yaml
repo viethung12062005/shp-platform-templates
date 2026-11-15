@@ -1,0 +1,127 @@
+suite: autoscaling
+templates:
+  - hpa.yaml
+  - keda.yaml
+  - workload.yaml
+release:
+  name: demo
+  namespace: default
+set:
+  image.repository: example.azurecr.io/demo
+  image.tag: local
+tests:
+  - it: renders an HPA that targets the Deployment when autoscaling is enabled
+    template: hpa.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - isAPIVersion:
+          of: autoscaling/v2
+      - equal:
+          path: spec.scaleTargetRef
+          value:
+            apiVersion: apps/v1
+            kind: Deployment
+            name: demo-microservice
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      - equal:
+          path: spec.maxReplicas
+          value: 6
+      - equal:
+          path: spec.metrics
+          value:
+            - type: Resource
+              resource:
+                name: cpu
+                target: { type: Utilization, averageUtilization: 70 }
+
+  - it: omits the fixed replica count when the HPA manages the Deployment
+    template: workload.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: renders a ScaledObject with the configured triggers when KEDA is enabled
+    template: keda.yaml
+    set:
+      keda.enabled: true
+      keda.triggers:
+        - type: cron
+          metadata: { timezone: UTC, desiredReplicas: "6" }
+    asserts:
+      - isKind:
+          of: ScaledObject
+      - isAPIVersion:
+          of: keda.sh/v1alpha1
+      - equal:
+          path: spec.scaleTargetRef
+          value:
+            apiVersion: apps/v1
+            kind: Deployment
+            name: demo-microservice
+      - equal:
+          path: spec.minReplicaCount
+          value: 2
+      - equal:
+          path: spec.maxReplicaCount
+          value: 10
+      - equal:
+          path: spec.triggers
+          value:
+            - type: cron
+              metadata: { timezone: UTC, desiredReplicas: "6" }
+
+  - it: omits the fixed replica count when KEDA manages the Deployment
+    template: workload.yaml
+    set:
+      keda.enabled: true
+      keda.triggers:
+        - { type: cron, metadata: { timezone: UTC } }
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: suppresses the HPA when KEDA is enabled
+    template: hpa.yaml
+    set:
+      autoscaling.enabled: true
+      keda.enabled: true
+      keda.triggers:
+        - { type: cron, metadata: { timezone: UTC } }
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: points the HPA at the Rollout when the rollout is enabled
+    template: hpa.yaml
+    set:
+      rollout.enabled: true
+      autoscaling.enabled: true
+    asserts:
+      - equal:
+          path: spec.scaleTargetRef
+          value:
+            apiVersion: argoproj.io/v1alpha1
+            kind: Rollout
+            name: demo-microservice
+
+  - it: points the ScaledObject at the Rollout when the rollout is enabled
+    template: keda.yaml
+    set:
+      rollout.enabled: true
+      keda.enabled: true
+      keda.triggers:
+        - { type: cron, metadata: { timezone: UTC } }
+    asserts:
+      - equal:
+          path: spec.scaleTargetRef
+          value:
+            apiVersion: argoproj.io/v1alpha1
+            kind: Rollout
+            name: demo-microservice
