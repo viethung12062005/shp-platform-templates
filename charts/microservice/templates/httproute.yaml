@@ -5,7 +5,7 @@ metadata:
   name: {{ include "microservice.fullname" . }}
   labels: {{- include "microservice.labels" . | nindent 4 }}
 spec:
-  parentRefs: {{- toYaml (required "httpRoute.parentRefs là bắt buộc" .Values.httpRoute.parentRefs) | nindent 4 }}
+  parentRefs: {{- toYaml (required "httpRoute.parentRefs is required" .Values.httpRoute.parentRefs) | nindent 4 }}
   {{- with .Values.httpRoute.hostnames }}
   hostnames: {{- toYaml . | nindent 4 }}
   {{- end }}

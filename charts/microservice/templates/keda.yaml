@@ -12,5 +12,5 @@ spec:
   minReplicaCount: {{ .Values.keda.minReplicaCount }}
   maxReplicaCount: {{ .Values.keda.maxReplicaCount }}
   triggers:
-    {{- toYaml (required "keda.triggers không được rỗng khi bật KEDA" .Values.keda.triggers) | nindent 4 }}
+    {{- toYaml (required "keda.triggers must not be empty when KEDA is enabled" .Values.keda.triggers) | nindent 4 }}
 {{- end }}

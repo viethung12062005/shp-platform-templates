@@ -29,7 +29,7 @@ app.kubernetes.io/part-of: smart-hospital-platform
 {{- else if .Values.image.tag -}}
 {{ .Values.image.repository }}:{{ .Values.image.tag }}
 {{- else -}}
-{{- fail "image.digest hoặc image.tag là bắt buộc" -}}
+{{- fail "image.digest or image.tag is required" -}}
 {{- end -}}
 {{- end -}}
 
@@ -41,7 +41,7 @@ app.kubernetes.io/part-of: smart-hospital-platform
 {{- end -}}
 {{- end -}}
 
-{{/* Pod template dùng chung cho Deployment và Rollout */}}
+{{/* Pod template shared by the Deployment and the Rollout */}}
 {{- define "microservice.podTemplate" -}}
 metadata:
   labels:
@@ -72,7 +72,7 @@ spec:
       ports:
         - { name: http, containerPort: {{ .Values.containerPort }} }
       env:
-        - { name: SERVER_PORT, value: {{ .Values.containerPort | quote }} }   # Spring Boot đọc trực tiếp
+        - { name: SERVER_PORT, value: {{ .Values.containerPort | quote }} }   # Spring Boot reads it directly
         {{- range $k, $v := .Values.env }}
         - { name: {{ $k }}, value: {{ $v | quote }} }
         {{- end }}
