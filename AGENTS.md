@@ -49,11 +49,13 @@ Read them before you commit or open a PR; this file adds only what is specific t
 ```bash
 helm lint --strict charts/microservice
 for v in charts/microservice/ci/*.yaml; do helm template t charts/microservice -f "$v" > /dev/null; done
+helm unittest charts/microservice --strict
 actionlint
 ```
 
 CI (`chart / validate`, `checks / actionlint`) runs the same plus kubeconform and a Trivy configuration scan. A new
-chart feature comes with a value set in `charts/microservice/ci/` that exercises it. Pushing a change under
+chart feature comes with a value set in `charts/microservice/ci/` that exercises it and, when it changes rendered
+output, a test suite in `charts/microservice/tests/`. Pushing a change under
 `.github/workflows/` needs a token with the `workflow` scope; if the push is rejected, tell the user.
 
 ## Conventions specific to this repository

@@ -1,0 +1,87 @@
+suite: HTTPRoute
+templates:
+  - httproute.yaml
+  - service.yaml
+release:
+  name: demo
+  namespace: default
+set:
+  image.repository: example.azurecr.io/demo
+  image.tag: local
+tests:
+  - it: renders no HTTPRoute by default
+    template: httproute.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders the route with the default path prefix and backend service
+    template: httproute.yaml
+    set:
+      httpRoute.enabled: true
+      httpRoute.parentRefs:
+        - { name: shp-gateway, namespace: gateway }
+      httpRoute.hostnames: [api.example.org]
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - isAPIVersion:
+          of: gateway.networking.k8s.io/v1
+      - equal:
+          path: metadata.name
+          value: demo-microservice
+      - equal:
+          path: spec.parentRefs
+          value:
+            - { name: shp-gateway, namespace: gateway }
+      - equal:
+          path: spec.hostnames
+          value: [api.example.org]
+      - equal:
+          path: spec.rules
+          value:
+            - matches:
+                - path: { type: PathPrefix, value: "/" }
+              backendRefs:
+                - { name: demo-microservice, port: 80 }
+
+  - it: renders one match per path prefix when pathPrefixes is set
+    template: httproute.yaml
+    set:
+      httpRoute.enabled: true
+      httpRoute.parentRefs:
+        - { name: shp-gateway }
+      httpRoute.pathPrefix: /ignored
+      httpRoute.pathPrefixes: [/fhir, /api]
+    asserts:
+      - equal:
+          path: spec.rules[0].matches
+          value:
+            - path: { type: PathPrefix, value: /fhir }
+            - path: { type: PathPrefix, value: /api }
+      - equal:
+          path: spec.rules[0].backendRefs
+          value:
+            - { name: demo-microservice, port: 80 }
+
+  - it: points the backend at the configured service port
+    template: httproute.yaml
+    set:
+      httpRoute.enabled: true
+      httpRoute.parentRefs:
+        - { name: shp-gateway }
+      service.port: 8081
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8081
+
+  - it: omits hostnames when none are set
+    template: httproute.yaml
+    set:
+      httpRoute.enabled: true
+      httpRoute.parentRefs:
+        - { name: shp-gateway }
+    asserts:
+      - notExists:
+          path: spec.hostnames
