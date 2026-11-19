@@ -24,7 +24,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with: { version: v3.19.0 }
-      - uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2.3.1
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID_CHART_PUSH }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
