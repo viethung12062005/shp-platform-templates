@@ -108,11 +108,18 @@ jobs:
           # The container runs as a non-root user: give it write access to the mounted data and report directories.
           mkdir -p dc-report
           chmod -R 777 dc-report dc-data
+          # Optional, reviewed suppressions: a dependency-check-suppressions.xml at the caller's repo root is passed to the
+          # tool. Without the file the command is exactly the same as before. Keep each suppression narrow and dated.
+          extra=()
+          if [ -f dependency-check-suppressions.xml ]; then
+            echo "Using dependency-check-suppressions.xml"
+            extra+=(--suppression /src/dependency-check-suppressions.xml)
+          fi
           docker run --rm \
             -v "$PWD:/src:ro" -v "$PWD/dc-report:/report" -v "$PWD/dc-data:/usr/share/dependency-check/data" \
             "$DEPCHECK_IMAGE" \
             --scan /src --format HTML --format JSON --out /report \
-            --noupdate --failOnCVSS 7 --disableAssembly
+            --noupdate --failOnCVSS 7 --disableAssembly "${extra[@]}"
       - name: Upload Dependency-Check report
         if: always() && steps.db.outputs.cache-matched-key != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
