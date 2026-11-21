@@ -62,6 +62,8 @@ metadata:
   {{- end }}
 spec:
   serviceAccountName: {{ include "microservice.serviceAccountName" . }}
+  # Azure Workload Identity reads its token from the automounted ServiceAccount volume, so it stays on while that
+  # feature is enabled. The Keycloak assertion below comes from a projected volume and works either way.
   automountServiceAccountToken: {{ .Values.workloadIdentity.enabled }}
   securityContext:
     {{- toYaml .Values.podSecurityContext | nindent 4 }}
@@ -79,6 +81,10 @@ spec:
         {{- range .Values.secretEnv }}
         - name: {{ .name }}
           valueFrom: { secretKeyRef: { name: {{ .secretName }}, key: {{ .key }} } }
+        {{- end }}
+        {{- if .Values.workloadIdentity.tokenAudience }}
+        # IAM-02: the projected ServiceAccount token the service presents to Keycloak as its client assertion (RFC 7523).
+        - { name: CLIENT_ASSERTION_FILE, value: {{ printf "%s/client-assertion.jwt" (trimSuffix "/" .Values.workloadIdentity.tokenPath) | quote }} }
         {{- end }}
       {{- if .Values.config }}
       envFrom:
@@ -105,6 +111,9 @@ spec:
         {{- if .Values.keyVault.enabled }}
         - { name: secrets-store, mountPath: {{ .Values.keyVault.mountPath }}, readOnly: true }
         {{- end }}
+        {{- if .Values.workloadIdentity.tokenAudience }}
+        - { name: client-assertion, mountPath: {{ trimSuffix "/" .Values.workloadIdentity.tokenPath }}, readOnly: true }
+        {{- end }}
   volumes:
     - { name: tmp, emptyDir: {} }
     {{- if .Values.configFiles }}
@@ -117,6 +126,16 @@ spec:
         driver: secrets-store.csi.k8s.io
         readOnly: true
         volumeAttributes: { secretProviderClass: {{ include "microservice.fullname" . }} }
+    {{- end }}
+    {{- if .Values.workloadIdentity.tokenAudience }}
+    # Audience = the Keycloak realm issuer: Keycloak only accepts an assertion issued for itself (IAM-02).
+    - name: client-assertion
+      projected:
+        sources:
+          - serviceAccountToken:
+              audience: {{ .Values.workloadIdentity.tokenAudience | quote }}
+              expirationSeconds: {{ int .Values.workloadIdentity.tokenExpirationSeconds }}
+              path: client-assertion.jwt
     {{- end }}
   {{- if and .Values.topologySpread.enabled (gt (int .Values.replicaCount) 1) }}
   topologySpreadConstraints:
