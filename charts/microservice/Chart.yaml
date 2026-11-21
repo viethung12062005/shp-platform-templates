@@ -2,5 +2,5 @@ apiVersion: v2
 name: microservice
 description: Shared chart for every Smart Hospital Platform service (Deployment or Argo Rollout, security defaults at restricted).
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "0.0.0"

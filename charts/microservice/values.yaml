@@ -42,6 +42,13 @@ serviceAccount:
 workloadIdentity:
   enabled: false
   clientId: ""
+  # Keycloak client authentication with the pod's own ServiceAccount token (IAM-02): the service sends a signed
+  # assertion instead of a client secret. Set tokenAudience to the realm issuer of the environment,
+  # https://<gateway.hostname>/idp/realms/shp, and the chart projects a short-lived ServiceAccount token with exactly
+  # that audience, mounts it read-only and passes its path in CLIENT_ASSERTION_FILE. Empty = no projected token.
+  tokenAudience: ""
+  tokenExpirationSeconds: 3600   # Kubernetes bounds: 600..86400; the kubelet refreshes the file before it expires
+  tokenPath: /var/run/secrets/shp
 
 # Key Vault through the Secrets Store CSI driver (only for values that truly have to be secrets)
 keyVault:

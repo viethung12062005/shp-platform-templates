@@ -1,0 +1,109 @@
+suite: Keycloak client assertion from a projected ServiceAccount token (IAM-02)
+templates:
+  - workload.yaml
+release:
+  name: demo
+  namespace: default
+set:
+  image.repository: example.azurecr.io/demo
+  image.tag: local
+tests:
+  - it: projects no token by default
+    asserts:
+      - notExists:
+          path: spec.template.spec.volumes[1]
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CLIENT_ASSERTION_FILE
+          any: true
+
+  - it: projects a ServiceAccount token for the realm issuer audience
+    set:
+      workloadIdentity.enabled: true
+      workloadIdentity.clientId: 00000000-0000-0000-0000-000000000000
+      workloadIdentity.tokenAudience: https://api.example.org/idp/realms/shp
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1]
+          value:
+            name: client-assertion
+            projected:
+              sources:
+                - serviceAccountToken:
+                    audience: https://api.example.org/idp/realms/shp
+                    expirationSeconds: 3600
+                    path: client-assertion.jwt
+
+  - it: mounts the token and points CLIENT_ASSERTION_FILE at it
+    set:
+      workloadIdentity.enabled: true
+      workloadIdentity.clientId: 00000000-0000-0000-0000-000000000000
+      workloadIdentity.tokenAudience: https://api.example.org/idp/realms/shp
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1]
+          value:
+            name: client-assertion
+            mountPath: /var/run/secrets/shp
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CLIENT_ASSERTION_FILE
+            value: /var/run/secrets/shp/client-assertion.jwt
+
+  - it: keeps the automounted token on for Azure Workload Identity
+    set:
+      workloadIdentity.enabled: true
+      workloadIdentity.clientId: 00000000-0000-0000-0000-000000000000
+      workloadIdentity.tokenAudience: https://api.example.org/idp/realms/shp
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true
+
+  - it: leaves the automounted token off when only the assertion is used
+    set:
+      workloadIdentity.tokenAudience: https://api.example.org/idp/realms/shp
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CLIENT_ASSERTION_FILE
+            value: /var/run/secrets/shp/client-assertion.jwt
+
+  - it: honours a custom path and expiration
+    set:
+      workloadIdentity.tokenAudience: https://api.example.org/idp/realms/shp
+      workloadIdentity.tokenPath: /var/run/secrets/keycloak/
+      workloadIdentity.tokenExpirationSeconds: 900
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].mountPath
+          value: /var/run/secrets/keycloak
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CLIENT_ASSERTION_FILE
+            value: /var/run/secrets/keycloak/client-assertion.jwt
+      - equal:
+          path: spec.template.spec.volumes[1].projected.sources[0].serviceAccountToken.expirationSeconds
+          value: 900
+
+  - it: refuses an expiration below the Kubernetes minimum
+    set:
+      workloadIdentity.tokenAudience: https://api.example.org/idp/realms/shp
+      workloadIdentity.tokenExpirationSeconds: 300
+    asserts:
+      - failedTemplate: {}
+
+  - it: refuses an expiration above the Kubernetes maximum
+    set:
+      workloadIdentity.tokenAudience: https://api.example.org/idp/realms/shp
+      workloadIdentity.tokenExpirationSeconds: 90000
+    asserts:
+      - failedTemplate: {}

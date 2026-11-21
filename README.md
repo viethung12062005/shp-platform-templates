@@ -55,3 +55,30 @@ Checked with `helm lint --strict`, `kubeconform --strict` (with the Argo Rollout
 
 - `httpRoute.pathPrefixes`: several prefixes on one HTTPRoute (overrides `pathPrefix`). The Gateway API uses `[/fhir, /api]`, the web app keeps `/`.
 - `configFiles`: mount a read-only file from a ConfigMap, for example the web app's runtime `config.json` (`ci/web-values.yaml`).
+
+## `microservice` chart: Keycloak client assertion (IAM-02)
+
+A service calls Keycloak as itself without a client secret: it sends a signed JWT
+(`client_assertion`) built from its own Kubernetes ServiceAccount token. The chart does the Kubernetes half.
+
+| Value | Default | Meaning |
+|---|---|---|
+| `workloadIdentity.tokenAudience` | `""` | Audience of the projected ServiceAccount token: the **realm issuer** of the environment, `https://<gateway.hostname>/idp/realms/shp`. Empty = no projected token and no `CLIENT_ASSERTION_FILE`. Keycloak only accepts an assertion whose `aud` is its own issuer, so this value must match the environment, not a fixed string. |
+| `workloadIdentity.tokenExpirationSeconds` | `3600` | Lifetime of the projected token; Kubernetes accepts 600–86400 and rewrites the file before it expires. |
+| `workloadIdentity.tokenPath` | `/var/run/secrets/shp` | Directory the token is mounted at; the file inside is `client-assertion.jwt`. |
+
+When `tokenAudience` is set the chart adds the projected `client-assertion` volume, mounts it read-only and sets
+`CLIENT_ASSERTION_FILE=<tokenPath>/client-assertion.jwt`. `automountServiceAccountToken` stays
+`workloadIdentity.enabled`, because Azure Workload Identity reads its token from the automounted volume while the
+projected volume above needs no automount. Enabling it in the GitOps values of a service looks like this:
+
+```yaml
+workloadIdentity:
+  enabled: true
+  clientId: <user-assigned managed identity client id>
+  tokenAudience: https://api.uat.example.org/idp/realms/shp
+```
+
+The Keycloak side (the `kubernetes` identity provider and the `svc-*` clients) lives in `shp-gitops`,
+`platform/charts/shp-keycloak`. `charts/microservice/ci/full-values.yaml` exercises the feature and
+`charts/microservice/tests/clientassertion_test.yaml` pins the rendered output.

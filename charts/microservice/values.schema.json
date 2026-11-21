@@ -21,7 +21,16 @@
       "items": { "type": "object", "required": ["name", "secretName", "key"],
         "properties": { "name": { "type": "string" }, "secretName": { "type": "string" }, "key": { "type": "string" } } }
     },
-    "workloadIdentity": { "type": "object", "properties": { "enabled": { "type": "boolean" }, "clientId": { "type": "string" } } },
+    "workloadIdentity": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "clientId": { "type": "string" },
+        "tokenAudience": { "type": "string", "pattern": "^$|^https://[^\\s]+$" },
+        "tokenExpirationSeconds": { "type": "integer", "minimum": 600, "maximum": 86400 },
+        "tokenPath": { "type": "string", "pattern": "^/[^\\s]*$" }
+      }
+    },
     "podSecurityContext": { "type": "object", "properties": { "runAsNonRoot": { "const": true } } },
     "containerSecurityContext": {
       "type": "object",
